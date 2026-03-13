@@ -53,11 +53,13 @@ CLI (Typer)  →  REST API (FastAPI)  →  Orchestrator (LangGraph)  →  Agent 
 
 3. **LiteLLM for all model calls** — Never import openai, anthropic, or google SDKs directly. All LLM calls go through LiteLLM so any model (cloud or local) works with zero code changes.
 
-4. **Tools are sandboxed** — Shell commands run in restricted scope. File operations are confined to the task's git worktree. Browser tools run in headless Playwright. Never give agents unrestricted system access.
+4. **Tools are sandboxed** — In v1, sandboxing is path-based: file operations are confined to the task's git worktree (enforced by the tool layer), shell commands run with `cwd` set to the worktree, and browser tools run in headless Playwright. Agents cannot access files outside their worktree or the system's home directory. Network access is unrestricted in v1. Container-based sandboxing (chroot, seccomp, Docker) is on the backlog for hardened multi-tenant deployments.
 
-5. **Worktree isolation** — Each agent task runs in its own git worktree. Agents never modify the main working tree. Merges happen only after gates pass.
+5. **Worktree isolation** — Each agent task runs in its own git worktree. Agents never modify the main working tree. Merges happen only after gates pass. Parallel agents each get their own sub-branch off `fleet/task-{id}`. After all parallel stages pass their gates, the Integrator merges sub-branches into the task branch in deterministic order (alphabetical by stage name). Merge conflicts at this stage are handed to the Integrator agent to resolve.
 
-6. **Event-sourced state** — Every agent action and environment observation is an append-only event. Enables full replay, debugging, and audit trails.
+6. **Event-sourced state** — Every agent action and environment observation is an append-only event stored in the Event table of the state store. Enables full replay, debugging, and audit trails.
+
+7. **Fail-safe by default** — Every agent execution has a `timeout_minutes` kill switch and a `max_tokens` budget. Worktrees are cleaned up in `finally` blocks. Crashed tasks auto-resume from LangGraph checkpoints on API restart. Ctrl+C triggers graceful shutdown: marks task as `interrupted`, cleans up worktrees.
 
 ---
 
@@ -82,19 +84,43 @@ Teams register new agents by adding YAML files. Examples: DevOps agent, Docs age
 ### Agent YAML Schema
 
 ```yaml
-name: string           # Display name
-description: string    # What this agent does (used by classifier for routing)
-capabilities: [string] # What it can do (code_analysis, testing, review, etc.)
-tools: [string]        # Tool categories: code, browser, search, shell, api
-default_model: string  # LiteLLM model identifier
-system_prompt: string  # Base system prompt for the agent
-max_retries: int       # Max retry attempts on gate failure (default: 2)
-timeout_minutes: int   # Max execution time (default: 30)
+name: string             # Display name
+description: string      # What this agent does (used by classifier for routing)
+capabilities: [string]   # What it can do (code_analysis, testing, review, etc.)
+tools: [string]          # Tool categories: code, browser, search, shell, api
+default_model: string    # LiteLLM model identifier
+system_prompt: string    # Base system prompt for the agent
+max_retries: int         # Max retry attempts on gate failure (default: 2)
+timeout_minutes: int     # Max execution time (default: 30)
+max_tokens: int          # Max LLM tokens per execution (default: 100000)
+can_delegate: [string]   # Agent names this agent can delegate subtasks to (default: [])
 ```
 
 ### Agent-as-Tool Pattern
 
-Agents can invoke other agents as tools, supervised by the Orchestrator. For example, the Architect agent can delegate a subtask to the Backend Dev agent. The Orchestrator maintains global context while each agent only sees its own conversation history.
+Agents can request the Orchestrator to delegate subtasks to other agents. This is not direct agent-to-agent invocation — the requesting agent emits a `delegate` action in the event log, and the Orchestrator handles routing, worktree setup, and context scoping.
+
+**How it works:**
+1. Agent (e.g., Architect) emits a `delegate` action: `{ "target": "backend-dev", "subtask": "...", "context": "..." }`
+2. Orchestrator receives the delegation request and validates it
+3. Orchestrator creates a new execution for the target agent with scoped context
+4. Target agent runs in its own worktree, returns output to Orchestrator
+5. Orchestrator passes the result back to the requesting agent
+
+**Guardrails:**
+- `can_delegate: [agent-name, ...]` field in agent YAML explicitly lists which agents this agent can delegate to. If omitted, no delegation allowed.
+- Max delegation depth of 2 (A → B → C, but C cannot delegate further) to prevent circular chains.
+- The Orchestrator tracks the delegation chain and rejects any request that would create a cycle.
+
+```yaml
+# Example: Architect can delegate to backend-dev and frontend-dev
+name: "Architect"
+can_delegate:
+  - backend-dev
+  - frontend-dev
+```
+
+This preserves Principle #1 (Orchestrator owns the flow) and Principle #2 (agents are config, not code) — delegation permissions are declared in YAML, executed by the Orchestrator.
 
 ---
 
@@ -110,7 +136,21 @@ Tools are pluggable capabilities provisioned to agents based on their YAML confi
 | **shell** | Run commands, Docker, deploy scripts | asyncio.create_subprocess_exec (sandboxed) |
 | **api** | HTTP requests, webhook calls | httpx |
 
-Custom tools can be registered and assigned to agents.
+### Custom Tools
+
+Custom tools are Python modules that implement the `BaseTool` interface and are registered via YAML:
+
+```yaml
+# config/tools/jira.yaml
+name: jira
+module: agent_fleet.tools.contrib.jira   # Python module path
+class: JiraTool                           # Class implementing BaseTool
+config:
+  base_url: ${JIRA_URL}
+  api_token: ${JIRA_TOKEN}
+```
+
+The `BaseTool` interface requires: `name`, `description` (used by LLM), `execute(input) -> output`, and `schema()` (JSON schema for the tool's parameters). Custom tools are the one exception to "agents are config, not code" — tool capabilities require Python, but agents that *use* those tools are still YAML-only.
 
 ---
 
@@ -120,12 +160,13 @@ Custom tools can be registered and assigned to agents.
 
 ```yaml
 name: string
+concurrency: int             # Max parallel tasks against the same repo (default: 1)
+max_cost_usd: float          # Kill switch — halt task if estimated cost exceeds this
 stages:
   - name: string             # Stage identifier
     agent: string            # References agent YAML name
     model: string            # Optional model override
-    depends_on: string|list  # Stage(s) that must complete first
-    parallel_with: string    # Stage to run concurrently with
+    depends_on: string|list  # Stage(s) that must complete first (parallelism is inferred: stages with same depends_on run concurrently)
     gate:
       type: automated|score|approval|custom
       checks: [string]       # For automated gates
@@ -147,7 +188,7 @@ stages:
 | Type | Behavior |
 |------|----------|
 | **automated** | Run checks (tests, lint, build). Pass/fail based on exit codes |
-| **score** | Agent produces a numeric score. Compare against `min_score` |
+| **score** | A separate evaluator agent (typically Reviewer) produces a score 0-100 as a structured JSON field `{ "score": N, "reasoning": "..." }`. Compare against `min_score`. The evaluating agent is specified via `scored_by` field in the gate config (defaults to the `reviewer` agent). |
 | **approval** | Orchestrator (or human) reviews output before proceeding |
 | **custom** | Run a user-defined script or function |
 
@@ -172,10 +213,10 @@ Task → Architect (plan) → [Backend Dev ∥ Frontend Dev] → Reviewer → Te
 ### Phase 2 — Orchestration
 4. Orchestrator picks up task, loads project's workflow config
 5. Creates base branch `fleet/task-{id}`
-6. Intent classifier analyzes task to validate/adjust agent routing
+6. Intent classifier analyzes task to suggest agent routing adjustments. Workflow config is authoritative — the classifier can recommend skipping a stage (e.g., "no frontend work needed") or adding one, but the Orchestrator logs the recommendation and follows the workflow unless `classifier_mode: override` is set. Default is `classifier_mode: suggest` (log-only). Can be disabled entirely with `classifier_mode: disabled` for deterministic pipelines.
 
 ### Phase 3 — Stage Execution (repeats per stage)
-7. Orchestrator resolves next stage (respects `depends_on`, `parallel_with`)
+7. Orchestrator resolves next stage (respects `depends_on` — stages sharing the same dependency run in parallel automatically)
 8. Looks up agent from registry, resolves model (stage override → agent default)
 9. Creates git worktree for this agent's work
 10. Agent Runner spins up: LiteLLM client + tools + system prompt + task context
@@ -186,12 +227,37 @@ Task → Architect (plan) → [Backend Dev ∥ Frontend Dev] → Reviewer → Te
 13. Gate runs checks (test suite, lint, score threshold, etc.)
 14. **Pass** → merge worktree into base branch, advance to next stage
 15. **Fail** → check retry count. Under limit → re-run agent with failure context + event history. Over limit → `on_fail` action (route back, halt, notify human)
-16. **Reactions** fire for specific events (CI failure, review comments)
+16. **Reactions** fire for specific events (CI failure, review comments). Reactions run *after* gate evaluation completes — they do not conflict with gate `on_fail`. Gate handles the retry/routing decision; reactions handle supplementary actions (e.g., posting a comment, notifying a channel).
 
 ### Phase 5 — Delivery
 17. All stages pass → Integrator agent merges all work, resolves conflicts
 18. Creates PR via GitHub API with summary of what each agent did
 19. Task marked `completed`, user notified
+
+---
+
+## Concurrency & Task Queue
+
+- Tasks are queued and executed by a background worker loop in the API process.
+- The `concurrency` field in workflow config controls max parallel tasks per repo (default: 1). Tasks for the same repo queue up; tasks for different repos run concurrently.
+- Worktree names include the task ID (`fleet-worktree-{task_id}-{stage}`) to avoid collisions.
+- If two tasks targeting the same repo both complete and try to create PRs, they create separate PRs on separate branches (`fleet/task-{id}`). No conflict — GitHub handles parallel PRs natively.
+- Global concurrency limit configurable via `FLEET_MAX_CONCURRENT_TASKS` env var (default: 5).
+
+---
+
+## Error Handling & Recovery
+
+| Failure | Behavior |
+|---------|----------|
+| **LLM call fails** (rate limit, network, bad key) | Retry with exponential backoff (3 attempts, 2s/8s/30s). After 3 failures, mark execution as `error`, advance to gate with failure context. |
+| **Agent timeout** (`timeout_minutes` exceeded) | Kill the agent process, clean up worktree, mark execution as `timeout`. Gate evaluates as fail. |
+| **Token budget exceeded** (`max_tokens`) | Agent receives a "budget exhausted" signal, must return partial output. Gate evaluates partial output. |
+| **Worktree creation fails** (disk full, git lock) | Task marked as `error` with diagnostic message. No retry — requires human intervention. |
+| **Orchestrator crash** | LangGraph checkpoint persists state. On API restart, incomplete tasks auto-resume from last checkpoint. |
+| **CLI interrupted** (Ctrl+C) | Graceful shutdown: task marked `interrupted`, worktrees cleaned up. Task can be resumed via `fleet resume {task-id}`. |
+| **Merge conflict** (parallel worktrees) | Conflict handed to the Integrator agent. If Integrator fails, task marked `needs_human` with conflict details. |
+| **Cost limit exceeded** (`max_cost_usd`) | Task halted immediately, all agents stopped, worktrees preserved for inspection. Task marked `cost_limit`. |
 
 ---
 
@@ -307,9 +373,9 @@ agent-fleet/
 │   └── workflows/
 │       └── default.yaml           # Default full pipeline
 │
-├── cli/                           # CLI client
+├── cli/                           # CLI client (can invoke orchestrator directly OR call API)
 │   ├── __init__.py
-│   └── main.py                    # Typer commands
+│   └── main.py                    # Typer commands — uses API when server is running, falls back to direct orchestrator invocation for zero-setup personal use
 │
 ├── tests/
 │   ├── unit/
@@ -339,7 +405,7 @@ agent-fleet/
 | Model abstraction | LiteLLM | Unified interface for 100+ models (cloud + local) |
 | REST API | FastAPI | Async, auto-docs, Pydantic validation |
 | CLI | Typer | Clean Python CLI with auto-generated help |
-| State store | SQLite → PostgreSQL | Start simple, scale later |
+| State store | SQLAlchemy + Alembic (SQLite → PostgreSQL) | ORM abstracts dialect differences, Alembic manages migrations |
 | Browser tools | Playwright | Already familiar, battle-tested |
 | Web UI (future) | React + MUI + React Flow | Reuse fabric-platform experience |
 | Logging | structlog | Structured JSON logs with context |
