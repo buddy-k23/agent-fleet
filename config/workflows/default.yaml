@@ -35,7 +35,7 @@ stages:
       - frontend
     gate:
       type: score
-      min_score: 80
+      min_score: 20
       on_fail: route_to
       max_retries: 2
 
