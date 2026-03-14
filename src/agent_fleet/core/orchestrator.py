@@ -153,10 +153,88 @@ class FleetOrchestrator:
         return bool(result.stdout.strip())
 
     def evaluate_gate(self, state: FleetState) -> FleetState:
-        """Evaluate the gate for the current stage. (Stub — wired in #30)"""
-        stage = state.get("current_stage")
-        log_event(state["task_id"], "gate", {"stage": stage})
-        return state
+        """Evaluate the gate for the current stage."""
+        import subprocess as sp
+
+        stage_name = state.get("current_stage")
+        if not stage_name:
+            return state
+
+        task_id = state["task_id"]
+        stage_config = self._workflow.get_stage(stage_name)
+        gate = stage_config.gate
+        worktree_path = state.get("_worktree_path", "")
+
+        log_event(task_id, "gate", {"stage": stage_name, "gate_type": gate.type})
+
+        # Evaluate gate
+        passed = False
+        if gate.type == "approval":
+            # Auto-approve for PoC
+            passed = True
+            logger.info("gate_auto_approved", task_id=task_id, stage=stage_name)
+        elif gate.type == "automated":
+            # Run checks
+            check_results: dict[str, bool] = {}
+            for check in gate.checks:
+                if check == "tests_pass" and worktree_path:
+                    result = sp.run(
+                        ["python", "-m", "pytest", "--tb=short", "-q"],
+                        cwd=worktree_path,
+                        capture_output=True,
+                        text=True,
+                        timeout=120,
+                    )
+                    check_results[check] = result.returncode == 0
+                    logger.info(
+                        "gate_check",
+                        task_id=task_id,
+                        check=check,
+                        passed=result.returncode == 0,
+                        output=result.stdout[-500:] if result.stdout else "",
+                    )
+                else:
+                    check_results[check] = True  # Unknown checks pass by default
+            passed = all(check_results.values())
+
+        # Handle result
+        completed = list(state.get("completed_stages", []))
+        retry_counts = dict(state.get("retry_counts", {}))
+
+        if passed:
+            completed.append(stage_name)
+            logger.info("gate_passed", task_id=task_id, stage=stage_name)
+            return {
+                **state,
+                "completed_stages": completed,
+                "retry_counts": retry_counts,
+            }
+
+        # Gate failed
+        retry_counts[stage_name] = retry_counts.get(stage_name, 0) + 1
+        max_retries = gate.max_retries or 2
+
+        if retry_counts[stage_name] > max_retries:
+            logger.error(
+                "gate_max_retries",
+                task_id=task_id,
+                stage=stage_name,
+                retries=retry_counts[stage_name],
+            )
+            return {
+                **state,
+                "status": "error",
+                "error_message": f"Gate failed at {stage_name} after {max_retries} retries",
+                "retry_counts": retry_counts,
+            }
+
+        logger.warning(
+            "gate_failed_retry",
+            task_id=task_id,
+            stage=stage_name,
+            retry=retry_counts[stage_name],
+        )
+        return {**state, "retry_counts": retry_counts}
 
     def build_graph(self) -> StateGraph:
         """Build and compile the LangGraph state graph."""

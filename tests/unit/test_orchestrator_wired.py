@@ -164,3 +164,174 @@ class TestExecuteStage:
         task_context = call_args[0][1]  # second positional arg
         assert "Plan" in task_context
         assert "multiply" in task_context
+
+
+class TestEvaluateGate:
+    def _make_git_repo(self, tmp_path: Path) -> Path:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        (tmp_path / "README.md").write_text("# Test")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        return tmp_path
+
+    def test_approval_gate_auto_approves(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "two-stage.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-gate-a",
+            "repo": str(repo),
+            "description": "Test",
+            "workflow_name": "two-stage",
+            "status": "running",
+            "current_stage": "plan",
+            "completed_stages": [],
+            "stage_outputs": {"plan": {"success": True, "output": "Plan here"}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        assert "plan" in result["completed_stages"]
+
+    def test_automated_gate_passes_when_tests_pass(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+
+        # Create a worktree with passing tests
+        worktree = tmp_path / ".fleet-worktrees" / "fleet-worktree-t-gate-b-backend"
+        worktree.mkdir(parents=True)
+        # Simulate worktree as git repo
+        subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        # Write a passing test
+        (worktree / "test_pass.py").write_text("def test_ok():\n    assert True\n")
+        subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "test"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "two-stage.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-gate-b",
+            "repo": str(repo),
+            "description": "Test",
+            "workflow_name": "two-stage",
+            "status": "running",
+            "current_stage": "backend",
+            "completed_stages": ["plan"],
+            "stage_outputs": {"backend": {"success": True, "output": "Done"}},
+            "retry_counts": {},
+            "_worktree_path": str(worktree),
+        }
+        result = orch.evaluate_gate(state)
+        assert "backend" in result["completed_stages"]
+
+    def test_automated_gate_fails_when_tests_fail(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+
+        worktree = tmp_path / ".fleet-worktrees" / "fleet-worktree-t-gate-c-backend"
+        worktree.mkdir(parents=True)
+        subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        # Write a failing test
+        (worktree / "test_fail.py").write_text("def test_bad():\n    assert False\n")
+        subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "test"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "two-stage.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-gate-c",
+            "repo": str(repo),
+            "description": "Test",
+            "workflow_name": "two-stage",
+            "status": "running",
+            "current_stage": "backend",
+            "completed_stages": ["plan"],
+            "stage_outputs": {"backend": {"success": True, "output": "Done"}},
+            "retry_counts": {},
+            "_worktree_path": str(worktree),
+        }
+        result = orch.evaluate_gate(state)
+        # Should NOT be in completed_stages
+        assert "backend" not in result.get("completed_stages", [])
+        # Retry count incremented
+        assert result["retry_counts"].get("backend", 0) >= 1
+
+    def test_gate_sets_error_after_max_retries(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+
+        worktree = tmp_path / ".fleet-worktrees" / "fleet-worktree-t-gate-d-backend"
+        worktree.mkdir(parents=True)
+        subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+        (worktree / "test_fail.py").write_text("def test_bad():\n    assert False\n")
+        subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "test"],
+            cwd=worktree, capture_output=True, check=True,
+        )
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "two-stage.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-gate-d",
+            "repo": str(repo),
+            "description": "Test",
+            "workflow_name": "two-stage",
+            "status": "running",
+            "current_stage": "backend",
+            "completed_stages": ["plan"],
+            "stage_outputs": {"backend": {"success": True, "output": "Done"}},
+            "retry_counts": {"backend": 3},  # Already at max
+            "_worktree_path": str(worktree),
+        }
+        result = orch.evaluate_gate(state)
+        assert result["status"] == "error"
