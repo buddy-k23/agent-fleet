@@ -1,0 +1,56 @@
+name: "Full Development Pipeline"
+concurrency: 1
+max_cost_usd: 50.0
+classifier_mode: suggest
+stages:
+  - name: plan
+    agent: architect
+    model: anthropic/claude-opus-4-6
+    gate:
+      type: approval
+
+  - name: backend
+    agent: backend-dev
+    depends_on: plan
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+        - lint_clean
+
+  - name: frontend
+    agent: frontend-dev
+    depends_on: plan
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+        - lint_clean
+
+  - name: review
+    agent: reviewer
+    model: anthropic/claude-opus-4-6
+    depends_on:
+      - backend
+      - frontend
+    gate:
+      type: score
+      min_score: 80
+      on_fail: route_to
+      route_target: backend
+      max_retries: 2
+
+  - name: e2e
+    agent: tester
+    depends_on: review
+    gate:
+      type: automated
+      checks:
+        - all_tests_pass
+
+  - name: deliver
+    agent: integrator
+    depends_on: e2e
+    actions:
+      - merge_worktrees
+      - create_pr
