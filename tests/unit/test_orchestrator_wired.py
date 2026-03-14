@@ -165,6 +165,91 @@ class TestExecuteStage:
         assert "Plan" in task_context
         assert "multiply" in task_context
 
+    @patch("agent_fleet.core.orchestrator.AgentRunner")
+    def test_execute_stage_includes_review_feedback_on_retry(
+        self, mock_runner_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        repo = self._make_git_repo(tmp_path)
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = AgentResult(
+            success=True,
+            output="Fixed the issues",
+            files_changed=["calculator.py"],
+            tokens_used=600,
+            iterations=3,
+            tool_calls=[],
+        )
+        mock_runner_cls.return_value = mock_runner
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-feedback",
+            "repo": str(repo),
+            "description": "Add multiply",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "backend",
+            "completed_stages": ["plan"],
+            "stage_outputs": {
+                "plan": {"success": True, "output": "## Plan\nAdd multiply"},
+                "review": {
+                    "success": True,
+                    "output": '{"score": 60, "reasoning": "Missing edge cases"}',
+                },
+            },
+            "total_tokens": 1000,
+        }
+        orch.execute_stage(state)
+
+        call_args = mock_runner.run.call_args
+        task_context = call_args[0][1]
+        assert "Reviewer Feedback" in task_context
+        assert "Missing edge cases" in task_context
+
+    @patch("agent_fleet.core.orchestrator.AgentRunner")
+    def test_execute_stage_no_feedback_on_first_run(
+        self, mock_runner_cls: MagicMock, tmp_path: Path
+    ) -> None:
+        repo = self._make_git_repo(tmp_path)
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = AgentResult(
+            success=True,
+            output="Done",
+            files_changed=[],
+            tokens_used=300,
+            iterations=2,
+            tool_calls=[],
+        )
+        mock_runner_cls.return_value = mock_runner
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "two-stage.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-nofeedback",
+            "repo": str(repo),
+            "description": "Add multiply",
+            "workflow_name": "two-stage",
+            "status": "running",
+            "current_stage": "backend",
+            "completed_stages": ["plan"],
+            "stage_outputs": {
+                "plan": {"success": True, "output": "## Plan\nAdd multiply"},
+            },
+            "total_tokens": 500,
+        }
+        orch.execute_stage(state)
+
+        call_args = mock_runner.run.call_args
+        task_context = call_args[0][1]
+        assert "Reviewer Feedback" not in task_context
+
 
 class TestEvaluateGate:
     def _make_git_repo(self, tmp_path: Path) -> Path:
@@ -419,6 +504,31 @@ class TestScoreGate:
         assert "review" not in result["completed_stages"]
         # Should still route back (to first depends_on or config target)
         assert result["retry_counts"].get("review", 0) >= 1
+
+    def test_score_gate_routes_to_frontend(self) -> None:
+        import json
+
+        orch = self._make_orchestrator()
+        review_output = json.dumps({
+            "score": 40,
+            "reasoning": "Frontend issues",
+            "route_to": "frontend",
+        })
+        state: FleetState = {
+            "task_id": "t-score-e",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "review",
+            "completed_stages": ["plan", "backend", "frontend"],
+            "stage_outputs": {"review": {"success": True, "output": review_output}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        # frontend should be removed from completed
+        assert "frontend" not in result["completed_stages"]
+        assert "backend" in result["completed_stages"]
 
     def test_score_gate_malformed_json_treated_as_zero(self) -> None:
         orch = self._make_orchestrator()

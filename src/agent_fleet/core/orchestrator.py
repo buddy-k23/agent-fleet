@@ -111,6 +111,23 @@ class FleetOrchestrator:
             plan_output = stage_outputs["plan"].get("output", "")
             task_context += f"\n\n## Architect's Plan\n\n{plan_output}"
 
+        # Inject reviewer feedback if this stage is being retried after review
+        if "review" in stage_outputs and stage_name not in ("plan", "review"):
+            review_output = stage_outputs["review"].get("output", "")
+            try:
+                import json as json_mod
+
+                parsed = json_mod.loads(review_output)
+                reasoning = parsed.get("reasoning", review_output)
+                score = parsed.get("score", "?")
+            except (json_mod.JSONDecodeError, ValueError, TypeError):
+                reasoning = review_output
+                score = "?"
+            task_context += (
+                f"\n\n## Reviewer Feedback (score: {score}/100)\n\n"
+                f"{reasoning}\n\nPlease address the reviewer's feedback."
+            )
+
         # Run agent
         provider = LLMProvider()
         tools = create_tools(agent_config.tools, worktree_path)
