@@ -7,10 +7,15 @@ import structlog
 from langgraph.graph import StateGraph
 
 from agent_fleet.agents.registry import AgentRegistry
+from agent_fleet.agents.runner import AgentRunner
 from agent_fleet.core.events import log_event
 from agent_fleet.core.router import Router
 from agent_fleet.core.state import FleetState
 from agent_fleet.core.workflow import WorkflowConfig, load_workflow
+from agent_fleet.exceptions import WorktreeError
+from agent_fleet.models.provider import LLMProvider
+from agent_fleet.tools.registry import create_tools
+from agent_fleet.workspace.worktree import WorktreeManager
 
 logger = structlog.get_logger()
 
@@ -69,10 +74,83 @@ class FleetOrchestrator:
         return {**state, "current_stage": next_stage}
 
     def execute_stage(self, state: FleetState) -> FleetState:
-        """Execute the current stage's agent. (Stub — wired in #29)"""
-        stage = state.get("current_stage")
-        log_event(state["task_id"], "execute", {"stage": stage})
-        return state
+        """Execute the current stage's agent in a worktree."""
+        stage_name = state.get("current_stage")
+        if not stage_name:
+            return {**state, "status": "error", "error_message": "No current stage"}
+
+        task_id = state["task_id"]
+        stage_config = self._workflow.get_stage(stage_name)
+        agent_config = self._registry.get(stage_config.agent)
+        model = stage_config.model or agent_config.default_model
+
+        log_event(task_id, "execute", {"stage": stage_name, "agent": stage_config.agent})
+
+        # Create worktree
+        repo_path = Path(state["repo"]) if "repo" in state else self._repo_path
+        if not repo_path:
+            return {**state, "status": "error", "error_message": "No repo path"}
+
+        worktree_mgr = WorktreeManager(repo_path)
+        task_branch = f"fleet/task-{task_id}"
+
+        try:
+            worktree_path = worktree_mgr.create(
+                task_id=task_id,
+                stage=stage_name,
+                base_branch=task_branch if self._has_branch(repo_path, task_branch) else None,
+            )
+        except WorktreeError as e:
+            logger.error("worktree_create_failed", task_id=task_id, error=str(e))
+            return {**state, "status": "error", "error_message": f"Worktree failed: {e}"}
+
+        # Build task context
+        task_context = f"Task: {state.get('description', '')}"
+        stage_outputs = state.get("stage_outputs", {})
+        if "plan" in stage_outputs and stage_name != "plan":
+            plan_output = stage_outputs["plan"].get("output", "")
+            task_context += f"\n\n## Architect's Plan\n\n{plan_output}"
+
+        # Run agent
+        provider = LLMProvider()
+        tools = create_tools(agent_config.tools, worktree_path)
+        runner = AgentRunner(provider=provider, tools=tools)
+
+        # Override model on the config for this run
+        run_config = agent_config.model_copy(update={"default_model": model})
+        result = runner.run(run_config, task_context, worktree_path)
+
+        # Store result
+        new_outputs = {**stage_outputs, stage_name: result.model_dump()}
+        total_tokens = state.get("total_tokens", 0) + result.tokens_used
+
+        logger.info(
+            "stage_executed",
+            task_id=task_id,
+            stage=stage_name,
+            success=result.success,
+            tokens=result.tokens_used,
+        )
+
+        # Store worktree path for gate evaluation
+        return {
+            **state,
+            "stage_outputs": new_outputs,
+            "total_tokens": total_tokens,
+            "_worktree_path": str(worktree_path),
+        }
+
+    def _has_branch(self, repo_path: Path, branch: str) -> bool:
+        """Check if a branch exists in the repo."""
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "branch", "--list", branch],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+        )
+        return bool(result.stdout.strip())
 
     def evaluate_gate(self, state: FleetState) -> FleetState:
         """Evaluate the gate for the current stage. (Stub — wired in #30)"""
