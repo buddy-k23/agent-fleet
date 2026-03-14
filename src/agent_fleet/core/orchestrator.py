@@ -118,7 +118,11 @@ class FleetOrchestrator:
 
         # Override model on the config for this run
         run_config = agent_config.model_copy(update={"default_model": model})
-        result = runner.run(run_config, task_context, worktree_path)
+        try:
+            result = runner.run(run_config, task_context, worktree_path)
+        except Exception as e:
+            logger.error("agent_run_failed", task_id=task_id, stage=stage_name, error=str(e))
+            return {**state, "status": "error", "error_message": f"Agent failed: {e}"}
 
         # Store result
         new_outputs = {**stage_outputs, stage_name: result.model_dump()}
