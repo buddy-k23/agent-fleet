@@ -173,6 +173,7 @@ class FleetOrchestrator:
 
         # Evaluate gate
         passed = False
+        route_to_stage: str | None = None
         if gate.type == "approval":
             # Auto-approve for PoC
             passed = True
@@ -200,6 +201,10 @@ class FleetOrchestrator:
                 else:
                     check_results[check] = True  # Unknown checks pass by default
             passed = all(check_results.values())
+        elif gate.type == "score":
+            passed, route_to_stage = self._evaluate_score_gate(
+                state, stage_name, gate
+            )
 
         # Handle result
         completed = list(state.get("completed_stages", []))
@@ -232,13 +237,75 @@ class FleetOrchestrator:
                 "retry_counts": retry_counts,
             }
 
+        # For score gate: route back to the specified stage
+        if gate.type == "score" and route_to_stage and route_to_stage in completed:
+            completed.remove(route_to_stage)
+            logger.info(
+                "gate_route_back",
+                task_id=task_id,
+                from_stage=stage_name,
+                to_stage=route_to_stage,
+            )
+
         logger.warning(
             "gate_failed_retry",
             task_id=task_id,
             stage=stage_name,
             retry=retry_counts[stage_name],
         )
-        return {**state, "retry_counts": retry_counts}
+        return {**state, "completed_stages": completed, "retry_counts": retry_counts}
+
+    def _evaluate_score_gate(
+        self,
+        state: FleetState,
+        stage_name: str,
+        gate: object,
+    ) -> tuple[bool, str | None]:
+        """Parse reviewer JSON output and evaluate score gate.
+
+        Returns (passed, route_to_stage).
+        """
+        import json as json_mod
+
+        stage_outputs = state.get("stage_outputs", {})
+        output_str = stage_outputs.get(stage_name, {}).get("output", "")
+
+        # Parse JSON from reviewer output
+        score = 0
+        route_to_stage: str | None = None
+        try:
+            parsed = json_mod.loads(output_str)
+            score = int(parsed.get("score", 0))
+            route_to_stage = parsed.get("route_to")
+        except (json_mod.JSONDecodeError, ValueError, TypeError):
+            logger.warning(
+                "score_gate_parse_failed",
+                task_id=state["task_id"],
+                stage=stage_name,
+            )
+            score = 0
+
+        min_score = getattr(gate, "min_score", 0) or 0
+        passed = score >= min_score
+
+        logger.info(
+            "score_gate_evaluated",
+            task_id=state["task_id"],
+            stage=stage_name,
+            score=score,
+            min_score=min_score,
+            passed=passed,
+        )
+
+        # Fallback route_to: gate config route_target, then first depends_on
+        if not passed and not route_to_stage:
+            route_to_stage = getattr(gate, "route_target", None)
+            if not route_to_stage:
+                stage_config = self._workflow.get_stage(stage_name)
+                if stage_config.depends_on:
+                    route_to_stage = stage_config.depends_on[0]
+
+        return passed, route_to_stage
 
     def build_graph(self) -> StateGraph:
         """Build and compile the LangGraph state graph."""

@@ -335,3 +335,103 @@ class TestEvaluateGate:
         }
         result = orch.evaluate_gate(state)
         assert result["status"] == "error"
+
+
+class TestScoreGate:
+    def _make_orchestrator(self) -> FleetOrchestrator:
+        return FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+        )
+
+    def test_score_gate_passes_above_threshold(self) -> None:
+        import json
+
+        orch = self._make_orchestrator()
+        review_output = json.dumps({
+            "score": 90,
+            "reasoning": "Code looks great",
+            "issues": [],
+        })
+        state: FleetState = {
+            "task_id": "t-score-a",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "review",
+            "completed_stages": ["plan", "backend", "frontend"],
+            "stage_outputs": {"review": {"success": True, "output": review_output}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        assert "review" in result["completed_stages"]
+
+    def test_score_gate_fails_and_routes_to_stage_from_json(self) -> None:
+        import json
+
+        orch = self._make_orchestrator()
+        review_output = json.dumps({
+            "score": 60,
+            "reasoning": "Missing tests",
+            "issues": [{"description": "No edge cases"}],
+            "route_to": "backend",
+        })
+        state: FleetState = {
+            "task_id": "t-score-b",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "review",
+            "completed_stages": ["plan", "backend", "frontend"],
+            "stage_outputs": {"review": {"success": True, "output": review_output}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        assert "review" not in result["completed_stages"]
+        # backend should be removed from completed so it re-executes
+        assert "backend" not in result["completed_stages"]
+        assert result["retry_counts"].get("review", 0) >= 1
+
+    def test_score_gate_falls_back_to_config_route_target(self) -> None:
+        import json
+
+        orch = self._make_orchestrator()
+        # No route_to in reviewer JSON
+        review_output = json.dumps({
+            "score": 50,
+            "reasoning": "Poor quality",
+            "issues": [],
+        })
+        state: FleetState = {
+            "task_id": "t-score-c",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "review",
+            "completed_stages": ["plan", "backend", "frontend"],
+            "stage_outputs": {"review": {"success": True, "output": review_output}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        assert "review" not in result["completed_stages"]
+        # Should still route back (to first depends_on or config target)
+        assert result["retry_counts"].get("review", 0) >= 1
+
+    def test_score_gate_malformed_json_treated_as_zero(self) -> None:
+        orch = self._make_orchestrator()
+        state: FleetState = {
+            "task_id": "t-score-d",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "review",
+            "completed_stages": ["plan", "backend", "frontend"],
+            "stage_outputs": {"review": {"success": True, "output": "not json at all"}},
+            "retry_counts": {},
+        }
+        result = orch.evaluate_gate(state)
+        assert "review" not in result["completed_stages"]
