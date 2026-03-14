@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from agent_fleet.tools.base import BaseTool
 from agent_fleet.tools.code import ListFilesTool, ReadFileTool, WriteFileTool
 from agent_fleet.tools.registry import create_tools, tool_to_litellm_schema
 from agent_fleet.tools.shell import ShellTool
