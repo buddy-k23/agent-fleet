@@ -245,9 +245,16 @@ class FleetOrchestrator:
         graph.add_node("evaluate_gate", self.evaluate_gate)
 
         graph.set_entry_point("route_next")
-        graph.add_edge("route_next", "execute_stage")
+        # route_next may set status="completed" — skip execution if so
+        graph.add_conditional_edges("route_next", should_continue, {
+            "route_next": "execute_stage",  # continue → execute
+            "__end__": "__end__",           # terminal → stop
+        })
         graph.add_edge("execute_stage", "evaluate_gate")
-        graph.add_conditional_edges("evaluate_gate", should_continue)
+        graph.add_conditional_edges("evaluate_gate", should_continue, {
+            "route_next": "route_next",
+            "__end__": "__end__",
+        })
 
         return graph.compile()
 
