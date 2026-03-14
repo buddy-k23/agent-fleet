@@ -251,6 +251,87 @@ class TestExecuteStage:
         assert "Reviewer Feedback" not in task_context
 
 
+class TestIntegratorShortcut:
+    def _make_git_repo(self, tmp_path: Path) -> Path:
+        subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "T"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        (tmp_path / "README.md").write_text("# Test")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=tmp_path, capture_output=True, check=True,
+        )
+        return tmp_path
+
+    def test_integrator_skips_llm(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-integ",
+            "repo": str(repo),
+            "description": "Add multiply",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "deliver",
+            "completed_stages": ["plan", "backend", "frontend", "review", "e2e"],
+            "stage_outputs": {
+                "plan": {"success": True, "output": "Plan here", "tokens_used": 200},
+                "backend": {
+                    "success": True,
+                    "output": "Added multiply",
+                    "files_changed": ["calculator.py"],
+                    "tokens_used": 500,
+                },
+            },
+            "total_tokens": 1000,
+        }
+        result = orch.execute_stage(state)
+
+        # Should have deliver output with no LLM tokens
+        assert "deliver" in result["stage_outputs"]
+        assert result["stage_outputs"]["deliver"]["tokens_used"] == 0
+        # Total tokens should not increase (no LLM call)
+        assert result["total_tokens"] == 1000
+
+    def test_integrator_writes_local_summary(self, tmp_path: Path) -> None:
+        repo = self._make_git_repo(tmp_path)
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=repo,
+        )
+        state: FleetState = {
+            "task_id": "t-integ-s",
+            "repo": str(repo),
+            "description": "Add multiply",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": "deliver",
+            "completed_stages": ["plan", "backend", "frontend", "review", "e2e"],
+            "stage_outputs": {
+                "plan": {"success": True, "output": "Plan", "tokens_used": 100},
+            },
+            "total_tokens": 500,
+        }
+        orch.execute_stage(state)
+
+        # Local summary should be written (no gh CLI in test)
+        summary_path = repo / "fleet-summary.md"
+        assert summary_path.exists()
+        assert "Add multiply" in summary_path.read_text()
+
+
 class TestEvaluateGate:
     def _make_git_repo(self, tmp_path: Path) -> Path:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)

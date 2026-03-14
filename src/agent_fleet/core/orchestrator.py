@@ -86,6 +86,10 @@ class FleetOrchestrator:
 
         log_event(task_id, "execute", {"stage": stage_name, "agent": stage_config.agent})
 
+        # Integrator shortcut — skip LLM, generate summary + create PR
+        if stage_config.agent == "integrator":
+            return self._execute_integrator(state, stage_name, task_id)
+
         # Create worktree
         repo_path = Path(state["repo"]) if "repo" in state else self._repo_path
         if not repo_path:
@@ -159,6 +163,65 @@ class FleetOrchestrator:
             "stage_outputs": new_outputs,
             "total_tokens": total_tokens,
             "_worktree_path": str(worktree_path),
+        }
+
+    def _execute_integrator(
+        self, state: FleetState, stage_name: str, task_id: str
+    ) -> FleetState:
+        """Run the integrator stage — generate summary + create PR, no LLM call."""
+        from agent_fleet.workspace.pr import detect_provider, generate_pr_body
+
+        stage_outputs = state.get("stage_outputs", {})
+        repo_path = Path(state["repo"]) if "repo" in state else self._repo_path
+
+        # Generate PR body
+        body = generate_pr_body(
+            description=state.get("description", ""),
+            workflow_name=state.get("workflow_name", "default"),
+            total_tokens=state.get("total_tokens", 0),
+            stage_outputs=stage_outputs,
+        )
+
+        # Detect provider and create PR, fall back to local on failure
+        pr_url: str | None = None
+        if repo_path:
+            from agent_fleet.workspace.pr import LocalSummaryProvider
+
+            provider = detect_provider(repo_path)
+            task_branch = f"fleet/task-{task_id}"
+            title = f"Agent Fleet: {state.get('description', 'Task')[:60]}"
+            pr_url = provider.create_pr(
+                repo_path=repo_path,
+                branch=task_branch,
+                title=title,
+                body=body,
+            )
+            # Fall back to local summary if PR creation failed
+            if pr_url is None and not isinstance(provider, LocalSummaryProvider):
+                local = LocalSummaryProvider()
+                local.create_pr(repo_path, task_branch, title, body)
+
+        # Store result (no LLM tokens used)
+        deliver_output = {
+            "success": True,
+            "output": body,
+            "files_changed": [],
+            "tokens_used": 0,
+            "iterations": 0,
+            "tool_calls": [],
+        }
+        new_outputs = {**stage_outputs, stage_name: deliver_output}
+
+        logger.info(
+            "integrator_executed",
+            task_id=task_id,
+            pr_url=pr_url,
+        )
+
+        return {
+            **state,
+            "stage_outputs": new_outputs,
+            "pr_url": pr_url,
         }
 
     def _has_branch(self, repo_path: Path, branch: str) -> bool:
