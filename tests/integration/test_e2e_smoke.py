@@ -175,7 +175,7 @@ class TestWorktreeIntegration:
             ["git", "branch", "--show-current"],
             cwd=wt, capture_output=True, text=True,
         )
-        assert "fleet/smoke-002/backend" in result.stdout
+        assert "fleet/smoke-002-backend" in result.stdout
         mgr.cleanup(wt)
 
 

@@ -48,7 +48,7 @@ class TestWorktreeCreate:
             ["git", "branch", "--show-current"],
             cwd=wt_path, capture_output=True, text=True,
         )
-        assert "fleet/task-003/frontend" in result.stdout.strip()
+        assert "fleet/task-003-frontend" in result.stdout.strip()
 
     def test_worktree_path_uses_naming_convention(self, git_repo: Path) -> None:
         mgr = WorktreeManager(git_repo)
@@ -103,3 +103,40 @@ class TestWorktreeList:
         mgr = WorktreeManager(git_repo)
         worktrees = mgr.list_worktrees()
         assert len(worktrees) == 0
+
+
+class TestWorktreeBaseBranch:
+    def test_create_with_base_branch(self, git_repo: Path) -> None:
+        """Worktree should branch off specified base branch, not HEAD."""
+        # Create a task branch with a commit
+        subprocess.run(
+            ["git", "checkout", "-b", "fleet/task-011"],
+            cwd=git_repo, capture_output=True, check=True,
+        )
+        (git_repo / "task-file.txt").write_text("task work")
+        subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "task branch commit"],
+            cwd=git_repo, capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "checkout", "-"],
+            cwd=git_repo, capture_output=True, check=True,
+        )
+
+        mgr = WorktreeManager(git_repo)
+        wt = mgr.create(task_id="task-011", stage="backend", base_branch="fleet/task-011")
+
+        # Worktree should have the file from the base branch
+        assert (wt / "task-file.txt").exists()
+        mgr.cleanup(wt)
+
+    def test_create_without_base_branch_uses_head(self, git_repo: Path) -> None:
+        """Without base_branch, should branch from HEAD (existing behavior)."""
+        mgr = WorktreeManager(git_repo)
+        wt = mgr.create(task_id="task-012", stage="plan")
+        assert wt.exists()
+        assert (wt / "README.md").exists()
+        # Should NOT have task-file.txt since it was on a different branch
+        assert not (wt / "task-file.txt").exists()
+        mgr.cleanup(wt)

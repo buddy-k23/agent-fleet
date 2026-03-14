@@ -24,19 +24,27 @@ class WorktreeManager:
         self._worktrees_dir = repo_root / ".fleet-worktrees"
         self._worktrees_dir.mkdir(exist_ok=True)
 
-    def create(self, task_id: str, stage: str) -> Path:
+    def create(
+        self, task_id: str, stage: str, base_branch: str | None = None
+    ) -> Path:
         """Create a new worktree for a task stage.
 
         Returns the path to the new worktree directory.
         Branch name: fleet/{task_id}/{stage}
         Worktree dir: .fleet-worktrees/fleet-worktree-{task_id}-{stage}
+
+        If base_branch is provided, the stage branch is created from that branch
+        instead of HEAD. Used to branch off the task branch (fleet/task-{id}).
         """
-        branch_name = f"fleet/{task_id}/{stage}"
+        branch_name = f"fleet/{task_id}-{stage}"
         worktree_name = f"fleet-worktree-{task_id}-{stage}"
         worktree_path = self._worktrees_dir / worktree_name
 
         try:
-            self._run_git("branch", branch_name)
+            if base_branch:
+                self._run_git("branch", branch_name, base_branch)
+            else:
+                self._run_git("branch", branch_name)
         except WorktreeError:
             pass  # Branch may already exist
 

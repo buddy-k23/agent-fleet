@@ -141,7 +141,9 @@ def test_completion_returns_tool_calls(mock_completion: MagicMock) -> None:
     mock_choice.message.model_dump.return_value = {
         "role": "assistant",
         "content": None,
-        "tool_calls": [{"id": "call_123", "function": {"name": "read_file", "arguments": '{"path": "src/main.py"}'}}],
+        "tool_calls": [
+            {"id": "call_123", "function": {"name": "read_file", "arguments": "{}"}}
+        ],
     }
 
     mock_result = MagicMock()
