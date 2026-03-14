@@ -55,24 +55,72 @@ AgentRunner.run(agent_config, task_context, worktree_path)
 
 ```python
 class AgentResult(BaseModel):
-    success: bool
+    success: bool            # False if max iterations hit or error
     output: str              # Agent's final text output
-    files_changed: list[str] # Files modified in the worktree
+    files_changed: list[str] # From git diff --name-only in worktree after run
     tokens_used: int
     iterations: int
     tool_calls: list[dict]   # Log of all tool calls made
 ```
 
+`files_changed` is populated by running `git diff --name-only` (for modified) and `git ls-files --others --exclude-standard` (for new files) in the worktree after the run completes. This is more reliable than tracking WriteFileTool calls.
+
+### AgentRunner Constructor
+
+```python
+class AgentRunner:
+    def __init__(self, provider: LLMProvider, tools: list[BaseTool], max_iterations: int = 20):
+        """DI via constructor for testability. Provider and tools are injected."""
+        ...
+
+    def run(self, agent_config: AgentConfig, task_context: str, worktree_path: Path) -> AgentResult:
+        """Execute the agent's ReAct loop. Returns when agent produces final text or hits limits."""
+        ...
+```
+
+`max_iterations` hit → returns `AgentResult(success=False, output="Max iterations reached")`.
+
 ### Tool Instantiation
 
-A tool registry function maps tool category names (from agent YAML) to concrete tool instances scoped to a worktree:
+A tool registry function maps tool category names (from agent YAML) to concrete tool instances scoped to a worktree. Unknown tool categories are skipped with a warning log (handles the `search` category which has no implementation yet).
 
 ```python
 def create_tools(tool_names: list[str], worktree_path: Path) -> list[BaseTool]:
     """Map tool category names to instantiated tools."""
     # "code" → [ReadFileTool, WriteFileTool, ListFilesTool]
     # "shell" → [ShellTool]
+    # unknown category → log warning, skip
 ```
+
+### Tool Schema Conversion to LiteLLM Format
+
+`BaseTool.schema()` returns bare JSON Schema (the `parameters` portion). The tool registry wraps each tool into the OpenAI function-calling format that LiteLLM expects:
+
+```python
+def tool_to_litellm_schema(tool: BaseTool) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.schema(),
+        },
+    }
+```
+
+This conversion happens in `tools/registry.py` when building the tool list.
+
+### Tool Call Message Serialization
+
+When the LLM responds with tool calls, the conversation history must follow the OpenAI/LiteLLM format exactly:
+
+1. Append the assistant message as-is (contains `tool_calls` array)
+2. For each tool call, execute the tool and append:
+   ```python
+   {"role": "tool", "tool_call_id": call.id, "content": json.dumps(result)}
+   ```
+3. Tool call arguments are parsed via `json.loads(call.function.arguments)` with a try/except — if parsing fails, return an error message to the LLM: `"Invalid JSON arguments. Please retry with valid JSON."`
+4. If the tool name is not found, return: `"Tool '{name}' not found. Available: {tool_names}"`
 
 ### LLM Provider — Tool Call Handling
 
@@ -196,6 +244,39 @@ This is ideal because:
 
 ---
 
+## Task Branch & Merge Mechanics
+
+The **CLI** creates the task branch before invoking the orchestrator:
+
+1. CLI creates branch `fleet/task-{id}` from current HEAD
+2. `WorktreeManager.create()` branches each stage off `fleet/task-{id}` (not HEAD)
+   - Requires modifying `WorktreeManager.create()` to accept a `base_branch` parameter
+   - Stage branch: `fleet/{task_id}/{stage}`, branched from `fleet/task-{id}`
+3. After gate passes, `evaluate_gate` does:
+   - `git add -A && git commit -m "feat({stage}): agent output"` in the worktree
+   - `git checkout fleet/task-{id} && git merge fleet/{task_id}/{stage}` in the main repo
+   - Clean up worktree
+4. On retry, a fresh worktree is created from `fleet/task-{id}` (includes prior stage merges). Retries start from scratch — the failed attempt is discarded.
+
+### stage_outputs Shape
+
+`stage_outputs` stores `AgentResult.model_dump()` — the full serialized result:
+
+```python
+state["stage_outputs"]["plan"] = {
+    "success": True,
+    "output": "## Plan\n\n### Files to Change\n...",  # The plan text
+    "files_changed": [],
+    "tokens_used": 1500,
+    "iterations": 3,
+    "tool_calls": [...]
+}
+```
+
+The backend stage reads the plan via `state["stage_outputs"]["plan"]["output"]` to get the architect's markdown plan text.
+
+---
+
 ## CLI Wiring
 
 `fleet run --repo PATH --task "description" --workflow two-stage` invokes the orchestrator directly (no API server):
@@ -203,9 +284,10 @@ This is ideal because:
 1. Load workflow config
 2. Load agent registry
 3. Create task record in SQLite
-4. Build initial FleetState
-5. Run orchestrator graph
-6. Print result (success/failure, files changed, tokens used)
+4. Create task branch `fleet/task-{id}` from current HEAD
+5. Build initial FleetState
+6. Run orchestrator graph
+7. Print result (success/failure, files changed, tokens used)
 
 ---
 
@@ -247,6 +329,16 @@ fleet run --repo ./tests/fixtures/test-repo --task "Add multiply(a, b)" --workfl
 | **Modify** | `src/agent_fleet/core/orchestrator.py` | Wire real logic into node functions |
 | **Modify** | `src/agent_fleet/models/provider.py` | Add tool_calls and raw_message to LLMResponse |
 | **Modify** | `cli/main.py` | Wire `fleet run` to invoke orchestrator |
+
+---
+
+## Edge Cases & Error Handling
+
+- **WorktreeManager.create() failure:** `execute_stage` catches `WorktreeError` and sets `status="error"` + `error_message` on state.
+- **pytest availability:** The test repo uses the system/venv `pytest`. The gate runs `python -m pytest` (which works if pytest is installed in the active Python) rather than bare `pytest` to avoid PATH issues.
+- **Token budget:** Soft limit — checked after each LLM call. A single call can exceed the budget. This is acceptable for PoC.
+- **Retry semantics:** Retries start from scratch on a fresh worktree branched from the task branch (which includes prior stage merges). The failed attempt's worktree is cleaned up.
+- **LLM tool_choice:** Default `"auto"` is used. No forced tool use for PoC.
 
 ---
 
