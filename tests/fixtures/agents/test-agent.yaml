@@ -1,0 +1,11 @@
+name: "Test Agent"
+description: "A test agent for unit tests"
+capabilities:
+  - testing
+tools:
+  - code
+  - shell
+default_model: "anthropic/claude-sonnet-4-6"
+system_prompt: "You are a test agent."
+max_retries: 1
+timeout_minutes: 5

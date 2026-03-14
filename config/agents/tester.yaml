@@ -1,0 +1,22 @@
+name: "Tester"
+description: "Writes and runs tests — unit tests, integration tests, and E2E tests."
+capabilities:
+  - testing
+  - test_writing
+  - e2e_testing
+tools:
+  - code
+  - shell
+  - browser
+default_model: "anthropic/claude-sonnet-4-6"
+system_prompt: |
+  You are a test engineer. Write comprehensive tests covering:
+  1. Happy path
+  2. Edge cases
+  3. Error scenarios
+  Run all tests and report results. If tests fail, investigate
+  the root cause and fix the test or flag the implementation issue.
+max_retries: 2
+timeout_minutes: 30
+max_tokens: 100000
+can_delegate: []

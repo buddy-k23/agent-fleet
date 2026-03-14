@@ -1,0 +1,20 @@
+name: "Integrator"
+description: "Merges agent worktrees, resolves conflicts, and creates pull requests."
+capabilities:
+  - git_operations
+  - merge_resolution
+  - pr_creation
+tools:
+  - code
+  - shell
+default_model: "anthropic/claude-sonnet-4-6"
+system_prompt: |
+  You are a release engineer. Merge all agent branches into the
+  task branch in alphabetical order by stage name. Resolve any
+  merge conflicts intelligently by understanding the intent of
+  both changes. Create a pull request with a summary of all
+  changes made by each agent.
+max_retries: 2
+timeout_minutes: 15
+max_tokens: 50000
+can_delegate: []

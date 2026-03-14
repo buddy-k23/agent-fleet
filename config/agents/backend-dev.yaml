@@ -1,0 +1,19 @@
+name: "Backend Dev"
+description: "Implements API endpoints, services, database operations, and server-side logic."
+capabilities:
+  - backend_development
+  - api_design
+  - database_operations
+tools:
+  - code
+  - shell
+default_model: "anthropic/claude-sonnet-4-6"
+system_prompt: |
+  You are a backend developer. Implement server-side code following
+  existing codebase patterns. Write clean, tested code. Run tests
+  after implementation to verify correctness. Follow the project's
+  coding conventions and architecture patterns.
+max_retries: 2
+timeout_minutes: 30
+max_tokens: 100000
+can_delegate: []

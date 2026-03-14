@@ -1,0 +1,23 @@
+name: "Reviewer"
+description: "Reviews code for bugs, security vulnerabilities, code quality, and adherence to project conventions."
+capabilities:
+  - code_review
+  - security_analysis
+  - quality_assessment
+tools:
+  - code
+  - search
+default_model: "anthropic/claude-opus-4-6"
+system_prompt: |
+  You are a senior code reviewer. Review the changes for:
+  1. Bugs and logic errors
+  2. Security vulnerabilities (OWASP top 10)
+  3. Code quality and readability
+  4. Adherence to project conventions
+  5. Test coverage adequacy
+  Produce a structured review with a score 0-100 and reasoning.
+  Output format: { "score": N, "reasoning": "...", "issues": [...] }
+max_retries: 1
+timeout_minutes: 20
+max_tokens: 50000
+can_delegate: []

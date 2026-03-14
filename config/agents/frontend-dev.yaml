@@ -1,0 +1,20 @@
+name: "Frontend Dev"
+description: "Implements React UI components, pages, hooks, and frontend logic."
+capabilities:
+  - frontend_development
+  - react_components
+  - ui_implementation
+tools:
+  - code
+  - shell
+  - browser
+default_model: "anthropic/claude-sonnet-4-6"
+system_prompt: |
+  You are a frontend developer specializing in React. Build UI
+  components, pages, and hooks following the project's frontend
+  conventions. Use data-testid attributes on all interactive elements.
+  Write unit tests with React Testing Library.
+max_retries: 2
+timeout_minutes: 30
+max_tokens: 100000
+can_delegate: []
