@@ -33,10 +33,18 @@ def test_agents_list_shows_all_six() -> None:
         assert agent in result.stdout.lower()
 
 
-def test_run_shows_stub() -> None:
-    result = runner.invoke(app, ["run", "--repo", "/tmp/repo", "--task", "Test task"])
-    assert result.exit_code == 0
-    assert "Submitting" in result.stdout
+def test_run_nonexistent_repo_exits_1() -> None:
+    result = runner.invoke(app, ["run", "--repo", "/nonexistent/path", "--task", "Test"])
+    assert result.exit_code == 1
+    assert "does not exist" in result.stdout
+
+
+def test_run_nonexistent_workflow_exits_1(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    result = runner.invoke(
+        app, ["run", "--repo", str(tmp_path), "--task", "Test", "--workflow", "nope"]
+    )
+    assert result.exit_code == 1
+    assert "not found" in result.stdout
 
 
 def test_status_shows_stub() -> None:
