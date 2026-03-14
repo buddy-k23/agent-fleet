@@ -1,0 +1,36 @@
+name: "Test Pipeline"
+concurrency: 1
+max_cost_usd: 10.0
+classifier_mode: suggest
+stages:
+  - name: plan
+    agent: architect
+    gate:
+      type: approval
+
+  - name: backend
+    agent: backend-dev
+    depends_on: plan
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: frontend
+    agent: frontend-dev
+    depends_on: plan
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: review
+    agent: reviewer
+    depends_on:
+      - backend
+      - frontend
+    gate:
+      type: score
+      min_score: 80
+      on_fail: route_to
+      route_target: backend
