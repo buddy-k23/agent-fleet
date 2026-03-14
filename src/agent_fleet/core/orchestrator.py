@@ -98,6 +98,14 @@ class FleetOrchestrator:
         worktree_mgr = WorktreeManager(repo_path)
         task_branch = f"fleet/task-{task_id}"
 
+        # Clean up existing worktree if retrying
+        expected_wt = (
+            repo_path / ".fleet-worktrees" / f"fleet-worktree-{task_id}-{stage_name}"
+        )
+        if expected_wt.exists():
+            logger.info("worktree_cleanup_before_retry", path=str(expected_wt))
+            worktree_mgr.cleanup(expected_wt)
+
         try:
             worktree_path = worktree_mgr.create(
                 task_id=task_id,
@@ -350,20 +358,41 @@ class FleetOrchestrator:
         stage_outputs = state.get("stage_outputs", {})
         output_str = stage_outputs.get(stage_name, {}).get("output", "")
 
-        # Parse JSON from reviewer output
+        # Parse JSON from reviewer output — try raw first, then extract from markdown
         score = 0
         route_to_stage: str | None = None
+        parsed = None
         try:
             parsed = json_mod.loads(output_str)
+        except (json_mod.JSONDecodeError, ValueError, TypeError):
+            # Try extracting JSON from markdown code block
+            import re
+
+            json_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", output_str, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json_mod.loads(json_match.group(1).strip())
+                except (json_mod.JSONDecodeError, ValueError, TypeError):
+                    pass
+            # Try finding first { ... } block
+            if parsed is None:
+                brace_match = re.search(r"\{.*\}", output_str, re.DOTALL)
+                if brace_match:
+                    try:
+                        parsed = json_mod.loads(brace_match.group(0))
+                    except (json_mod.JSONDecodeError, ValueError, TypeError):
+                        pass
+
+        if parsed and isinstance(parsed, dict):
             score = int(parsed.get("score", 0))
             route_to_stage = parsed.get("route_to")
-        except (json_mod.JSONDecodeError, ValueError, TypeError):
+        else:
             logger.warning(
                 "score_gate_parse_failed",
                 task_id=state["task_id"],
                 stage=stage_name,
+                output_preview=output_str[:200],
             )
-            score = 0
 
         min_score = getattr(gate, "min_score", 0) or 0
         passed = score >= min_score

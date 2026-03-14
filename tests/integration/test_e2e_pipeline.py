@@ -224,19 +224,14 @@ class TestSixStagePipeline:
             system_msg = messages[0]["content"] if messages else ""
             tool_msgs = [m for m in messages if m.get("role") == "tool"]
 
-            if "architect" in system_msg.lower():
+            if "architect" in system_msg.lower() and "code reviewer" not in system_msg.lower():
                 return _make_llm_response(
                     "## Plan\n\n### Files to Change\n"
                     "- src/calculator.py: add multiply(a, b)\n"
                     "- tests/test_calculator.py: add test_multiply\n",
                     tokens=200,
                 )
-            elif "frontend" in system_msg.lower():
-                return _make_llm_response(
-                    "No frontend changes needed for this task.",
-                    tokens=50,
-                )
-            elif "reviewer" in system_msg.lower() or "code reviewer" in system_msg.lower():
+            elif "code reviewer" in system_msg.lower():
                 return _make_llm_response(
                     json.dumps({
                         "score": 90,
@@ -244,6 +239,11 @@ class TestSixStagePipeline:
                         "issues": [],
                     }),
                     tokens=150,
+                )
+            elif "frontend" in system_msg.lower():
+                return _make_llm_response(
+                    "No frontend changes needed for this task.",
+                    tokens=50,
                 )
             elif "test engineer" in system_msg.lower():
                 # Tester: run tests

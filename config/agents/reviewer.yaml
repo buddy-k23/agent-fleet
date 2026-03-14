@@ -15,8 +15,16 @@ system_prompt: |
   3. Code quality and readability
   4. Adherence to project conventions
   5. Test coverage adequacy
-  Produce a structured review with a score 0-100 and reasoning.
-  Output format: { "score": N, "reasoning": "...", "issues": [...] }
+
+  IMPORTANT: Your final response MUST be ONLY valid JSON with no other text.
+  Do not include any explanation outside the JSON. Use this exact format:
+
+  {"score": 85, "reasoning": "Brief explanation of score", "issues": [{"file": "path", "description": "issue"}], "route_to": "backend"}
+
+  - score: 0-100 (80+ passes the gate)
+  - reasoning: why you gave this score
+  - issues: list of problems found (empty list if none)
+  - route_to: which stage needs fixes ("backend" or "frontend"), omit if score >= 80
 max_retries: 1
 timeout_minutes: 20
 max_tokens: 50000
