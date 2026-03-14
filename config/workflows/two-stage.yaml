@@ -1,0 +1,18 @@
+name: "Two-Stage Proof of Concept"
+concurrency: 1
+max_cost_usd: 5.0
+classifier_mode: disabled
+stages:
+  - name: plan
+    agent: architect
+    gate:
+      type: approval
+
+  - name: backend
+    agent: backend-dev
+    depends_on: plan
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+      max_retries: 2
