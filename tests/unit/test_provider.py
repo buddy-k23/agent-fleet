@@ -120,3 +120,58 @@ def test_completion_with_tools(mock_completion: MagicMock) -> None:
     assert result.content == "Tool result"
     call_kwargs = mock_completion.call_args[1]
     assert "tools" in call_kwargs
+
+
+def test_llm_response_tool_calls_default_none() -> None:
+    resp = LLMResponse(content="Hi", model="m", tokens_used=10)
+    assert resp.tool_calls is None
+    assert resp.raw_message is None
+
+
+@patch("agent_fleet.models.provider.litellm_completion")
+def test_completion_returns_tool_calls(mock_completion: MagicMock) -> None:
+    mock_tool_call = MagicMock()
+    mock_tool_call.id = "call_123"
+    mock_tool_call.function.name = "read_file"
+    mock_tool_call.function.arguments = '{"path": "src/main.py"}'
+
+    mock_choice = MagicMock()
+    mock_choice.message.content = None
+    mock_choice.message.tool_calls = [mock_tool_call]
+    mock_choice.message.model_dump.return_value = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [{"id": "call_123", "function": {"name": "read_file", "arguments": '{"path": "src/main.py"}'}}],
+    }
+
+    mock_result = MagicMock()
+    mock_result.choices = [mock_choice]
+    mock_result.model = "m"
+    mock_result.usage.total_tokens = 100
+    mock_completion.return_value = mock_result
+
+    provider = LLMProvider()
+    result = provider.complete(model="m", messages=[{"role": "user", "content": "Read"}])
+    assert result.content == ""
+    assert result.tool_calls is not None
+    assert len(result.tool_calls) == 1
+    assert result.raw_message is not None
+
+
+@patch("agent_fleet.models.provider.litellm_completion")
+def test_completion_no_tool_calls_returns_none(mock_completion: MagicMock) -> None:
+    mock_choice = MagicMock()
+    mock_choice.message.content = "Plain text"
+    mock_choice.message.tool_calls = None
+    mock_choice.message.model_dump.return_value = {"role": "assistant", "content": "Plain text"}
+
+    mock_result = MagicMock()
+    mock_result.choices = [mock_choice]
+    mock_result.model = "m"
+    mock_result.usage.total_tokens = 50
+    mock_completion.return_value = mock_result
+
+    provider = LLMProvider()
+    result = provider.complete(model="m", messages=[{"role": "user", "content": "Hi"}])
+    assert result.content == "Plain text"
+    assert result.tool_calls is None
