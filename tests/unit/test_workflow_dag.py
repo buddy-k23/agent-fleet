@@ -122,4 +122,5 @@ class TestDefaultWorkflow:
         assert review.gate.type == "score"
         assert review.gate.min_score == 80
         assert review.gate.on_fail == "route_to"
-        assert review.gate.route_target == "backend"
+        # route_target now comes from reviewer JSON, not config
+        assert review.gate.max_retries == 2

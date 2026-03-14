@@ -1,4 +1,4 @@
-"""E2E integration test — two-stage pipeline with mocked LLM."""
+"""E2E integration test — two-stage and six-stage pipelines with mocked LLM."""
 
 import json
 import shutil
@@ -204,3 +204,145 @@ class TestTwoStagePipeline:
         # Verify architect produced a plan
         assert "plan" in final["stage_outputs"]
         assert "multiply" in final["stage_outputs"]["plan"]["output"].lower()
+
+
+class TestSixStagePipeline:
+    @patch("agent_fleet.core.orchestrator.LLMProvider")
+    def test_full_six_stage_happy_path(
+        self,
+        mock_provider_cls: MagicMock,
+        test_repo: Path,
+    ) -> None:
+        """Full 6-stage pipeline: plan→backend→frontend→review→e2e→deliver."""
+        mock_provider = MagicMock()
+        call_count = 0
+
+        def mock_complete(**kwargs: object) -> LLMResponse:
+            nonlocal call_count
+            call_count += 1
+            messages = kwargs.get("messages", [])
+            system_msg = messages[0]["content"] if messages else ""
+            tool_msgs = [m for m in messages if m.get("role") == "tool"]
+
+            if "architect" in system_msg.lower():
+                return _make_llm_response(
+                    "## Plan\n\n### Files to Change\n"
+                    "- src/calculator.py: add multiply(a, b)\n"
+                    "- tests/test_calculator.py: add test_multiply\n",
+                    tokens=200,
+                )
+            elif "frontend" in system_msg.lower():
+                return _make_llm_response(
+                    "No frontend changes needed for this task.",
+                    tokens=50,
+                )
+            elif "reviewer" in system_msg.lower() or "code reviewer" in system_msg.lower():
+                return _make_llm_response(
+                    json.dumps({
+                        "score": 90,
+                        "reasoning": "Code looks good, tests are comprehensive",
+                        "issues": [],
+                    }),
+                    tokens=150,
+                )
+            elif "test engineer" in system_msg.lower():
+                # Tester: run tests
+                if len(tool_msgs) == 0:
+                    return _make_tool_call_response(
+                        "ct1", "shell",
+                        {"command": "python -m pytest tests/ -v"},
+                    )
+                else:
+                    return _make_llm_response(
+                        "All tests pass. 3 tests collected, 3 passed.",
+                        tokens=50,
+                    )
+            else:
+                # Backend dev
+                if len(tool_msgs) == 0:
+                    return _make_tool_call_response(
+                        "cb1", "read_file", {"path": "src/calculator.py"}
+                    )
+                elif len(tool_msgs) == 1:
+                    new_code = (
+                        '"""Simple calculator module."""\n\n\n'
+                        "def add(a: float, b: float) -> float:\n"
+                        '    """Add two numbers."""\n'
+                        "    return a + b\n\n\n"
+                        "def subtract(a: float, b: float) -> float:\n"
+                        '    """Subtract b from a."""\n'
+                        "    return a - b\n\n\n"
+                        "def multiply(a: float, b: float) -> float:\n"
+                        '    """Multiply two numbers."""\n'
+                        "    return a * b\n"
+                    )
+                    return _make_tool_call_response(
+                        "cb2", "write_file",
+                        {"path": "src/calculator.py", "content": new_code},
+                    )
+                elif len(tool_msgs) == 2:
+                    test_code = (
+                        '"""Tests for calculator module."""\n\n'
+                        "from src.calculator import add, subtract, multiply\n\n\n"
+                        "def test_add() -> None:\n"
+                        "    assert add(2, 3) == 5\n\n\n"
+                        "def test_subtract() -> None:\n"
+                        "    assert subtract(5, 3) == 2\n\n\n"
+                        "def test_multiply() -> None:\n"
+                        "    assert multiply(3, 4) == 12\n"
+                        "    assert multiply(0, 5) == 0\n"
+                    )
+                    return _make_tool_call_response(
+                        "cb3", "write_file",
+                        {"path": "tests/test_calculator.py", "content": test_code},
+                    )
+                else:
+                    return _make_llm_response("Done implementing.", tokens=50)
+
+        mock_provider.complete.side_effect = mock_complete
+        mock_provider_cls.return_value = mock_provider
+
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+            repo_path=test_repo,
+        )
+
+        state: FleetState = {
+            "task_id": "e2e6",
+            "repo": str(test_repo),
+            "description": "Add a multiply(a, b) function to the calculator",
+            "workflow_name": "default",
+            "status": "running",
+            "current_stage": None,
+            "completed_stages": [],
+            "retry_counts": {},
+            "stage_outputs": {},
+            "stage_errors": {},
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+        }
+
+        graph = orch.build_graph()
+        final = graph.invoke(state)
+
+        # Verify full pipeline completed
+        assert final["status"] == "completed"
+        expected_stages = {"plan", "backend", "frontend", "review", "e2e", "deliver"}
+        assert set(final["completed_stages"]) == expected_stages
+        assert final["total_tokens"] > 0
+
+        # Verify each stage produced output
+        assert "plan" in final["stage_outputs"]
+        assert "backend" in final["stage_outputs"]
+        assert "frontend" in final["stage_outputs"]
+        assert "review" in final["stage_outputs"]
+        assert "e2e" in final["stage_outputs"]
+        assert "deliver" in final["stage_outputs"]
+
+        # Verify integrator produced summary (no LLM tokens)
+        assert final["stage_outputs"]["deliver"]["tokens_used"] == 0
+
+        # Verify local summary was written
+        summary_path = test_repo / "fleet-summary.md"
+        assert summary_path.exists()
