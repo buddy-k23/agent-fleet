@@ -10,6 +10,7 @@ from agent_fleet import __version__
 from agent_fleet.agents.registry import AgentRegistry
 from agent_fleet.core.orchestrator import FleetOrchestrator
 from agent_fleet.core.state import FleetState
+from agent_fleet.workspace.worktree import WorktreeManager
 
 app = typer.Typer(name="fleet", help="Agent Fleet — Multi-model AI agent orchestration")
 agents_app = typer.Typer(help="Manage agents")
@@ -93,7 +94,17 @@ def run(
     typer.echo("Starting pipeline...")
     typer.echo()
 
-    final_state = graph.invoke(state)
+    final_state: FleetState = {}
+    try:
+        final_state = graph.invoke(state)
+    finally:
+        # Clean up worktrees regardless of success or failure
+        try:
+            worktree_mgr = WorktreeManager(repo_path)
+            worktree_mgr.cleanup_all(task_id)
+            typer.echo("Worktrees cleaned up.")
+        except Exception:
+            pass  # Best-effort cleanup
 
     # Print results
     typer.echo()
