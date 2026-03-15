@@ -32,3 +32,10 @@ class HealthResponse(BaseModel):
 
     status: str = "ok"
     version: str
+
+
+class TaskDetailResponse(TaskResponse):
+    """Extended response with pipeline progress."""
+    current_stage: str | None = None
+    completed_stages: list[str] = []
+    total_tokens: int = 0
