@@ -1,12 +1,13 @@
 """FastAPI application factory."""
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from agent_fleet import __version__
-from agent_fleet.api.routes import tasks
+from agent_fleet.api.routes import agents, profile, tasks, webhooks, workflows
 from agent_fleet.api.schemas import HealthResponse
 from agent_fleet.store.models import Base
 
@@ -36,8 +37,21 @@ def create_app(database_url: str = "sqlite:///./agent_fleet.db") -> FastAPI:
     # Store session dependency for route modules to use
     app.state.get_session = get_session
 
+    # CORS for React UI
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Routes
     app.include_router(tasks.router)
+    app.include_router(agents.router)
+    app.include_router(workflows.router)
+    app.include_router(profile.router)
+    app.include_router(webhooks.router)
 
     @app.get("/health")
     def health() -> HealthResponse:
