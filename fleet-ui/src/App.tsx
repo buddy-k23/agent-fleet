@@ -12,14 +12,18 @@ import { TaskMonitor } from './pages/TaskMonitor';
 import { AgentBuilder } from './pages/AgentBuilder';
 import { WorkflowDesigner } from './pages/WorkflowDesigner';
 import { Login, Signup } from './pages/Auth';
+import { Settings } from './pages/Settings';
+import { SubmitTask } from './pages/SubmitTask';
 import { lightTheme, darkTheme } from './theme';
 
 const SIDEBAR_WIDTH = 220;
 
 const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: '📊' },
+  { label: 'Submit', path: '/submit', icon: '🚀' },
   { label: 'Agents', path: '/agents', icon: '🤖' },
   { label: 'Workflows', path: '/workflows', icon: '🔀' },
+  { label: 'Settings', path: '/settings', icon: '⚙️' },
 ];
 
 function AppShell({ children }: { children: React.ReactNode }) {
@@ -132,6 +136,8 @@ export default function App() {
               <Route path="/tasks/:taskId" element={<ProtectedRoute><TaskMonitor /></ProtectedRoute>} />
               <Route path="/agents" element={<ProtectedRoute><AgentBuilder /></ProtectedRoute>} />
               <Route path="/workflows" element={<ProtectedRoute><WorkflowDesigner /></ProtectedRoute>} />
+              <Route path="/submit" element={<ProtectedRoute><SubmitTask /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             </Routes>
           </AppShell>
         </BrowserRouter>
