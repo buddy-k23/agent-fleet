@@ -191,3 +191,43 @@ Always reference the issue number: `feat(agents): add registry (#7)`
   `subprocess.run` in async contexts. Blocking calls freeze the event loop.
 - **Gate infinite loops** — Always enforce `max_retries` on gate failures.
   An agent that never passes review will loop forever without this guard.
+
+---
+
+## Supabase Integration
+
+**Backend data layer** — auth, database, realtime, storage all via Supabase.
+
+### Environment Variables
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_...      # Client-side (React UI)
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   # Server-side (FastAPI)
+```
+
+### Schema (7 tables, all with RLS)
+
+| Table | Purpose | RLS |
+|-------|---------|-----|
+| `profiles` | User display name + preferences | `auth.uid() = id` |
+| `agents` | Agent configs (replaces YAML) | `auth.uid() = user_id` |
+| `workflows` | Workflow configs (replaces YAML) | `auth.uid() = user_id` |
+| `tasks` | Pipeline executions | `auth.uid() = user_id` |
+| `executions` | Per-stage agent runs | via tasks FK |
+| `gate_results` | Quality gate outcomes | via executions FK |
+| `events` | Append-only event log | via tasks FK |
+
+### Auth Flow
+
+1. UI: Supabase Auth (email/password) → JWT token
+2. API: `get_current_user` dependency validates JWT, extracts `user_id`
+3. All queries scoped to `user_id` (defense in depth with RLS)
+
+### Key Rules
+
+- **Never bypass RLS** — always use anon key for user-scoped queries
+- **Service role key** — only for admin operations (seed script, migrations)
+- **Realtime** — enabled on tasks, executions, events tables
+- **Storage** — `task-outputs` and `task-logs` buckets for agent artifacts
+- **Seed data** — `python scripts/seed_supabase.py <user_id>` for default agents/workflows
