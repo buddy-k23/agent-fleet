@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box, Container, LinearProgress, Paper, Step, StepLabel, Stepper, Typography } from '@mui/material';
-import { createTaskWebSocket, fetchTask, TaskDetail } from '../../services/api';
+import { createTaskWebSocket, fetchTask } from '../../services/api';
+import type { TaskDetail } from '../../services/api';
 
 const STAGES = ['plan', 'backend', 'frontend', 'review', 'e2e', 'deliver'];
 

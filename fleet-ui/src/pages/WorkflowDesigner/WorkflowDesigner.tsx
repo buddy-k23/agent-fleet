@@ -7,10 +7,8 @@ import {
   useEdgesState,
   Controls,
   Background,
-  Connection,
-  Node,
-  Edge,
 } from '@xyflow/react';
+import type { Connection, Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 const initialNodes: Node[] = [

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Chip, Container, Typography } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { fetchTasks, Task } from '../../services/api';
+import { fetchTasks } from '../../services/api';
+import type { Task } from '../../services/api';
 
 const statusColor: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
   completed: 'success',
