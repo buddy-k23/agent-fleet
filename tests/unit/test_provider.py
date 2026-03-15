@@ -177,3 +177,70 @@ def test_completion_no_tool_calls_returns_none(mock_completion: MagicMock) -> No
     result = provider.complete(model="m", messages=[{"role": "user", "content": "Hi"}])
     assert result.content == "Plain text"
     assert result.tool_calls is None
+
+
+@patch("agent_fleet.models.provider.time.sleep")
+@patch("agent_fleet.models.provider.litellm_completion")
+def test_rate_limit_retries_then_succeeds(
+    mock_completion: MagicMock, mock_sleep: MagicMock
+) -> None:
+    """Rate limit on first call, success on retry."""
+    from litellm.exceptions import RateLimitError
+
+    mock_choice = MagicMock()
+    mock_choice.message.content = "Success after retry"
+    mock_choice.message.tool_calls = None
+    mock_choice.message.model_dump.return_value = {
+        "role": "assistant", "content": "Success after retry"
+    }
+    mock_success = MagicMock()
+    mock_success.choices = [mock_choice]
+    mock_success.model = "m"
+    mock_success.usage.total_tokens = 100
+
+    mock_completion.side_effect = [
+        RateLimitError(
+            message="rate limited",
+            model="m",
+            llm_provider="anthropic",
+        ),
+        mock_success,
+    ]
+
+    provider = LLMProvider()
+    result = provider.complete(model="m", messages=[{"role": "user", "content": "Hi"}])
+    assert result.content == "Success after retry"
+    assert mock_completion.call_count == 2
+    mock_sleep.assert_called_once()
+
+
+@patch("agent_fleet.models.provider.time.sleep")
+@patch("agent_fleet.models.provider.litellm_completion")
+def test_rate_limit_exhausts_retries(
+    mock_completion: MagicMock, mock_sleep: MagicMock
+) -> None:
+    """Rate limit on all retries raises LLMProviderError."""
+    from litellm.exceptions import RateLimitError
+
+    mock_completion.side_effect = RateLimitError(
+        message="rate limited",
+        model="m",
+        llm_provider="anthropic",
+    )
+
+    provider = LLMProvider()
+    with pytest.raises(LLMProviderError, match="Rate limit"):
+        provider.complete(model="m", messages=[{"role": "user", "content": "Hi"}])
+    assert mock_completion.call_count == 4  # 1 initial + 3 retries
+    assert mock_sleep.call_count == 3
+
+
+@patch("agent_fleet.models.provider.litellm_completion")
+def test_non_rate_limit_error_no_retry(mock_completion: MagicMock) -> None:
+    """Non-rate-limit errors should NOT retry."""
+    mock_completion.side_effect = ValueError("bad input")
+
+    provider = LLMProvider()
+    with pytest.raises(LLMProviderError):
+        provider.complete(model="m", messages=[{"role": "user", "content": "Hi"}])
+    assert mock_completion.call_count == 1
