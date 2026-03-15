@@ -56,6 +56,25 @@ class TestRouteNext:
         }
         result = orch.route_next(state)
         assert result["status"] == "completed"
+        assert result["pending_stages"] == []
+
+    def test_detects_parallel_stages(self) -> None:
+        """Default workflow: backend+frontend both depend on plan."""
+        orch = FleetOrchestrator(
+            workflow_path=CONFIG_DIR / "workflows" / "default.yaml",
+            agents_dir=CONFIG_DIR / "agents",
+        )
+        state: FleetState = {
+            "task_id": "t-par",
+            "repo": "/r",
+            "description": "Test",
+            "workflow_name": "default",
+            "status": "running",
+            "completed_stages": ["plan"],
+        }
+        result = orch.route_next(state)
+        assert set(result["pending_stages"]) == {"backend", "frontend"}
+        assert result["current_stage"] in ("backend", "frontend")
 
 
 class TestExecuteStage:

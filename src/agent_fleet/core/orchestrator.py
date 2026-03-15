@@ -62,16 +62,23 @@ class FleetOrchestrator:
 
         if not ready:
             logger.info("orchestrator_complete", task_id=state["task_id"])
-            return {**state, "status": "completed", "current_stage": None}
+            return {
+                **state,
+                "status": "completed",
+                "current_stage": None,
+                "pending_stages": [],
+            }
 
-        # Sequential for PoC — pick first ready stage
-        next_stage = ready[0].name
+        # Store all ready stages for parallel execution
+        pending = [s.name for s in ready]
+        next_stage = pending[0]
         logger.info(
             "orchestrator_route",
             task_id=state["task_id"],
             next_stage=next_stage,
+            parallel_stages=pending if len(pending) > 1 else None,
         )
-        return {**state, "current_stage": next_stage}
+        return {**state, "current_stage": next_stage, "pending_stages": pending}
 
     def execute_stage(self, state: FleetState) -> FleetState:
         """Execute the current stage's agent in a worktree."""

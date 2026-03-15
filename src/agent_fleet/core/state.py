@@ -19,6 +19,7 @@ class FleetState(TypedDict, total=False):
     # Progress
     status: str  # queued, running, completed, error, interrupted, cost_limit
     current_stage: str | None
+    pending_stages: list[str]  # All ready stages (for parallel execution)
     completed_stages: list[str]
     retry_counts: dict[str, int]  # stage_name -> retry count
 
