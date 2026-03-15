@@ -1,5 +1,10 @@
+import { useState } from 'react';
 import { BrowserRouter, Route, Routes, Link } from 'react-router-dom';
-import { AppBar, Box, Button, CssBaseline, ThemeProvider, Toolbar, Typography, createTheme } from '@mui/material';
+import {
+  Box, Button, CssBaseline, Drawer, IconButton, List, ListItemButton,
+  ListItemIcon, ListItemText, ThemeProvider, Toolbar, Typography,
+  useMediaQuery, AppBar,
+} from '@mui/material';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Dashboard } from './pages/Dashboard';
@@ -7,64 +12,128 @@ import { TaskMonitor } from './pages/TaskMonitor';
 import { AgentBuilder } from './pages/AgentBuilder';
 import { WorkflowDesigner } from './pages/WorkflowDesigner';
 import { Login, Signup } from './pages/Auth';
+import { lightTheme, darkTheme } from './theme';
 
-const darkTheme = createTheme({
-  palette: { mode: 'dark' },
-});
+const SIDEBAR_WIDTH = 220;
 
-function NavBar() {
+const NAV_ITEMS = [
+  { label: 'Dashboard', path: '/', icon: '📊' },
+  { label: 'Agents', path: '/agents', icon: '🤖' },
+  { label: 'Workflows', path: '/workflows', icon: '🔀' },
+];
+
+function AppShell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
+  const isMobile = useMediaQuery('(max-width:768px)');
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  return (
-    <AppBar position="static" data-testid="app-bar">
+  if (!user) return <>{children}</>;
+
+  const sidebar = (
+    <Box
+      sx={{
+        width: SIDEBAR_WIDTH,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.paper',
+        borderRight: 1,
+        borderColor: 'divider',
+      }}
+      data-testid="sidebar"
+    >
       <Toolbar>
-        <Typography variant="h6" sx={{ flexGrow: 1 }}>
+        <Typography variant="h6" sx={{ fontFamily: '"Fira Code", monospace', fontSize: 16 }}>
           Agent Fleet
         </Typography>
-        {user && (
-          <Box display="flex" gap={1} alignItems="center">
-            <Button color="inherit" component={Link} to="/" data-testid="nav-dashboard">
-              Dashboard
-            </Button>
-            <Button color="inherit" component={Link} to="/agents" data-testid="nav-agents">
-              Agents
-            </Button>
-            <Button color="inherit" component={Link} to="/workflows" data-testid="nav-workflows">
-              Workflows
-            </Button>
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 2 }}>
-              {user.email}
-            </Typography>
-            <Button
-              color="inherit"
-              onClick={() => signOut()}
-              size="small"
-              data-testid="nav-logout"
-            >
-              Logout
-            </Button>
-          </Box>
-        )}
       </Toolbar>
-    </AppBar>
+      <List sx={{ flex: 1, px: 1 }}>
+        {NAV_ITEMS.map((item) => (
+          <ListItemButton
+            key={item.path}
+            component={Link}
+            to={item.path}
+            onClick={() => setDrawerOpen(false)}
+            sx={{ borderRadius: 1, mb: 0.5 }}
+            data-testid={`nav-${item.label.toLowerCase()}`}
+          >
+            <ListItemIcon sx={{ minWidth: 36, fontSize: 18 }}>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.label} />
+          </ListItemButton>
+        ))}
+      </List>
+      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {user.email}
+        </Typography>
+        <Button
+          size="small"
+          fullWidth
+          onClick={() => signOut()}
+          sx={{ mt: 1 }}
+          data-testid="nav-logout"
+        >
+          Sign Out
+        </Button>
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      {isMobile ? (
+        <>
+          <AppBar position="fixed" data-testid="app-bar">
+            <Toolbar>
+              <IconButton
+                color="inherit"
+                onClick={() => setDrawerOpen(true)}
+                data-testid="menu-btn"
+              >
+                ☰
+              </IconButton>
+              <Typography variant="h6" sx={{ ml: 1 }}>Agent Fleet</Typography>
+            </Toolbar>
+          </AppBar>
+          <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+            {sidebar}
+          </Drawer>
+          <Box component="main" sx={{ flex: 1, pt: 8 }}>
+            {children}
+          </Box>
+        </>
+      ) : (
+        <>
+          {sidebar}
+          <Box component="main" sx={{ flex: 1, overflow: 'auto' }}>
+            {children}
+          </Box>
+        </>
+      )}
+    </Box>
   );
 }
 
 export default function App() {
+  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+  const [isDark] = useState(prefersDark);
+  const theme = isDark ? darkTheme : lightTheme;
+
   return (
-    <ThemeProvider theme={darkTheme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
         <BrowserRouter>
-          <NavBar />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/tasks/:taskId" element={<ProtectedRoute><TaskMonitor /></ProtectedRoute>} />
-            <Route path="/agents" element={<ProtectedRoute><AgentBuilder /></ProtectedRoute>} />
-            <Route path="/workflows" element={<ProtectedRoute><WorkflowDesigner /></ProtectedRoute>} />
-          </Routes>
+          <AppShell>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/tasks/:taskId" element={<ProtectedRoute><TaskMonitor /></ProtectedRoute>} />
+              <Route path="/agents" element={<ProtectedRoute><AgentBuilder /></ProtectedRoute>} />
+              <Route path="/workflows" element={<ProtectedRoute><WorkflowDesigner /></ProtectedRoute>} />
+            </Routes>
+          </AppShell>
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
