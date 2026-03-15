@@ -43,6 +43,7 @@ stages:
     agent: tester
     model: anthropic/claude-haiku-4-5-20251001
     depends_on: review
+    max_iterations: 5
     gate:
       type: automated
       checks:

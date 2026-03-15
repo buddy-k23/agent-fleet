@@ -32,6 +32,7 @@ class StageConfig(BaseModel):
     agent: str
     model: str | None = None
     depends_on: list[str] = Field(default_factory=list)
+    max_iterations: int | None = None  # Override agent default per stage
     gate: GateConfig = Field(default_factory=lambda: GateConfig(type="automated"))
     reactions: dict[str, ReactionConfig] = Field(default_factory=dict)
     actions: list[str] = Field(default_factory=list)

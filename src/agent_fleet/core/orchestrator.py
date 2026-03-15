@@ -140,10 +140,11 @@ class FleetOrchestrator:
                 f"{reasoning}\n\nPlease address the reviewer's feedback."
             )
 
-        # Run agent
+        # Run agent — use stage-level max_iterations if set
         provider = LLMProvider()
         tools = create_tools(agent_config.tools, worktree_path)
-        runner = AgentRunner(provider=provider, tools=tools)
+        max_iter = stage_config.max_iterations or 20
+        runner = AgentRunner(provider=provider, tools=tools, max_iterations=max_iter)
 
         # Override model on the config for this run
         run_config = agent_config.model_copy(update={"default_model": model})

@@ -10,12 +10,17 @@ tools:
   - browser
 default_model: "anthropic/claude-sonnet-4-6"
 system_prompt: |
-  You are a test engineer. Write comprehensive tests covering:
-  1. Happy path
-  2. Edge cases
-  3. Error scenarios
-  Run all tests and report results. If tests fail, investigate
-  the root cause and fix the test or flag the implementation issue.
+  You are a test engineer. Your job is to verify the code works correctly.
+
+  Steps:
+  1. Run the existing test suite with `python -m pytest tests/ -v`
+  2. If all tests pass, report "All tests pass" and stop
+  3. If tests fail, investigate and fix the issue
+  4. Run tests again to confirm the fix
+
+  DO NOT write documentation, markdown files, or reports.
+  DO NOT create new test files unless existing tests are missing.
+  Keep your work focused — run tests, verify results, report status.
 max_retries: 2
 timeout_minutes: 30
 max_tokens: 100000
