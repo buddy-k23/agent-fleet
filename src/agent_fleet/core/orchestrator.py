@@ -81,11 +81,105 @@ class FleetOrchestrator:
         return {**state, "current_stage": next_stage, "pending_stages": pending}
 
     def execute_stage(self, state: FleetState) -> FleetState:
-        """Execute the current stage's agent in a worktree."""
+        """Execute stage(s). Runs parallel stages concurrently via threading."""
+        pending = state.get("pending_stages", [])
         stage_name = state.get("current_stage")
+
+        # Parallel execution: multiple pending stages
+        if len(pending) > 1:
+            return self._execute_parallel(state, pending)
+
         if not stage_name:
             return {**state, "status": "error", "error_message": "No current stage"}
 
+        # Single stage execution
+        return self._execute_single_stage(state, stage_name)
+
+    def _execute_parallel(
+        self, state: FleetState, stages: list[str]
+    ) -> FleetState:
+        """Execute multiple stages concurrently using threads."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        task_id = state["task_id"]
+        logger.info(
+            "parallel_execution_start",
+            task_id=task_id,
+            stages=stages,
+        )
+
+        def run_single(stage_name: str) -> tuple[str, FleetState]:
+            """Run a single stage and return (stage_name, result_state)."""
+            single_state: FleetState = {
+                **state,
+                "current_stage": stage_name,
+                "pending_stages": [stage_name],
+            }
+            return stage_name, self._execute_single_stage(single_state, stage_name)
+
+        results: dict[str, FleetState] = {}
+        with ThreadPoolExecutor(max_workers=len(stages)) as executor:
+            futures = {executor.submit(run_single, s): s for s in stages}
+            for future in as_completed(futures):
+                stage_name = futures[future]
+                try:
+                    _, result_state = future.result()
+                    results[stage_name] = result_state
+                except Exception as e:
+                    logger.error(
+                        "parallel_stage_failed",
+                        task_id=task_id,
+                        stage=stage_name,
+                        error=str(e),
+                    )
+                    results[stage_name] = {
+                        **state,
+                        "status": "error",
+                        "error_message": f"Stage {stage_name} failed: {e}",
+                    }
+
+        # Merge results: combine stage_outputs and tokens from all stages
+        merged_outputs = dict(state.get("stage_outputs", {}))
+        total_tokens = state.get("total_tokens", 0)
+        worktree_paths: dict[str, str] = {}
+
+        for stage_name, result_state in results.items():
+            stage_out = result_state.get("stage_outputs", {})
+            if stage_name in stage_out:
+                merged_outputs[stage_name] = stage_out[stage_name]
+            total_tokens += stage_out.get(stage_name, {}).get("tokens_used", 0)
+            if "_worktree_path" in result_state:
+                worktree_paths[stage_name] = result_state["_worktree_path"]
+
+        # Check if any stage errored
+        for result_state in results.values():
+            if result_state.get("status") == "error":
+                return {
+                    **state,
+                    "status": "error",
+                    "error_message": result_state.get("error_message"),
+                    "stage_outputs": merged_outputs,
+                    "total_tokens": total_tokens,
+                }
+
+        logger.info(
+            "parallel_execution_complete",
+            task_id=task_id,
+            stages=stages,
+            total_tokens=total_tokens,
+        )
+
+        return {
+            **state,
+            "stage_outputs": merged_outputs,
+            "total_tokens": total_tokens,
+            "_worktree_paths": worktree_paths,
+        }
+
+    def _execute_single_stage(
+        self, state: FleetState, stage_name: str
+    ) -> FleetState:
+        """Execute a single stage (extracted from execute_stage for reuse)."""
         task_id = state["task_id"]
         stage_config = self._workflow.get_stage(stage_name)
         agent_config = self._registry.get(stage_config.agent)
@@ -93,7 +187,7 @@ class FleetOrchestrator:
 
         log_event(task_id, "execute", {"stage": stage_name, "agent": stage_config.agent})
 
-        # Integrator shortcut — skip LLM, generate summary + create PR
+        # Integrator shortcut
         if stage_config.agent == "integrator":
             return self._execute_integrator(state, stage_name, task_id)
 
@@ -105,12 +199,10 @@ class FleetOrchestrator:
         worktree_mgr = WorktreeManager(repo_path)
         task_branch = f"fleet/task-{task_id}"
 
-        # Clean up existing worktree if retrying
         expected_wt = (
             repo_path / ".fleet-worktrees" / f"fleet-worktree-{task_id}-{stage_name}"
         )
         if expected_wt.exists():
-            logger.info("worktree_cleanup_before_retry", path=str(expected_wt))
             worktree_mgr.cleanup(expected_wt)
 
         try:
@@ -130,12 +222,10 @@ class FleetOrchestrator:
             plan_output = stage_outputs["plan"].get("output", "")
             task_context += f"\n\n## Architect's Plan\n\n{plan_output}"
 
-        # Inject reviewer feedback if this stage is being retried after review
         if "review" in stage_outputs and stage_name not in ("plan", "review"):
             review_output = stage_outputs["review"].get("output", "")
             try:
                 import json as json_mod
-
                 parsed = json_mod.loads(review_output)
                 reasoning = parsed.get("reasoning", review_output)
                 score = parsed.get("score", "?")
@@ -147,13 +237,12 @@ class FleetOrchestrator:
                 f"{reasoning}\n\nPlease address the reviewer's feedback."
             )
 
-        # Run agent — use stage-level max_iterations if set
+        # Run agent
         provider = LLMProvider()
         tools = create_tools(agent_config.tools, worktree_path)
         max_iter = stage_config.max_iterations or 20
         runner = AgentRunner(provider=provider, tools=tools, max_iterations=max_iter)
 
-        # Override model on the config for this run
         run_config = agent_config.model_copy(update={"default_model": model})
         try:
             result = runner.run(run_config, task_context, worktree_path)
@@ -161,7 +250,6 @@ class FleetOrchestrator:
             logger.error("agent_run_failed", task_id=task_id, stage=stage_name, error=str(e))
             return {**state, "status": "error", "error_message": f"Agent failed: {e}"}
 
-        # Store result
         new_outputs = {**stage_outputs, stage_name: result.model_dump()}
         total_tokens = state.get("total_tokens", 0) + result.tokens_used
 
@@ -173,7 +261,6 @@ class FleetOrchestrator:
             tokens=result.tokens_used,
         )
 
-        # Store worktree path for gate evaluation
         return {
             **state,
             "stage_outputs": new_outputs,
@@ -253,12 +340,30 @@ class FleetOrchestrator:
         return bool(result.stdout.strip())
 
     def evaluate_gate(self, state: FleetState) -> FleetState:
-        """Evaluate the gate for the current stage."""
-        import subprocess as sp
+        """Evaluate gate(s). For parallel stages, evaluates all gates."""
+
+        pending = state.get("pending_stages", [])
+
+        # For parallel stages, evaluate all gates sequentially
+        if len(pending) > 1:
+            current_state = state
+            for stage in pending:
+                current_state = self._evaluate_single_gate(current_state, stage)
+                if current_state.get("status") == "error":
+                    return current_state
+            return current_state
 
         stage_name = state.get("current_stage")
         if not stage_name:
             return state
+
+        return self._evaluate_single_gate(state, stage_name)
+
+    def _evaluate_single_gate(
+        self, state: FleetState, stage_name: str
+    ) -> FleetState:
+        """Evaluate a single stage's gate."""
+        import subprocess as sp
 
         task_id = state["task_id"]
         stage_config = self._workflow.get_stage(stage_name)
