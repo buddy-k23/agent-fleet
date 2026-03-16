@@ -125,3 +125,84 @@ def detect_frameworks(root: Path) -> list[str]:
         frameworks.append("rust-cargo")
 
     return list(dict.fromkeys(frameworks))  # dedupe preserving order
+
+
+def detect_tests(root: Path) -> list[str]:
+    """Detect test frameworks from config files."""
+    tests: list[str] = []
+
+    # pytest
+    pyproject = root / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            if "pytest" in pyproject.read_text().lower():
+                tests.append("pytest")
+        except OSError:
+            pass
+    if (root / "conftest.py").exists() and "pytest" not in tests:
+        tests.append("pytest")
+
+    # jest
+    for name in ["jest.config.js", "jest.config.ts", "jest.config.mjs"]:
+        if (root / name).exists():
+            tests.append("jest")
+            break
+    if "jest" not in tests:
+        pkg = root / "package.json"
+        if pkg.exists():
+            try:
+                if '"jest"' in pkg.read_text():
+                    tests.append("jest")
+            except OSError:
+                pass
+
+    # vitest
+    for name in ["vitest.config.ts", "vitest.config.js"]:
+        if (root / name).exists():
+            tests.append("vitest")
+            break
+
+    # playwright
+    for name in ["playwright.config.ts", "playwright.config.js"]:
+        if (root / name).exists():
+            tests.append("playwright")
+            break
+
+    return list(dict.fromkeys(tests))
+
+
+def detect_ci(root: Path) -> str | None:
+    """Detect CI/CD platform from config files."""
+    if (root / ".github" / "workflows").is_dir():
+        return "github-actions"
+    if (root / ".gitlab-ci.yml").exists():
+        return "gitlab-ci"
+    if (root / "Jenkinsfile").exists():
+        return "jenkins"
+    if (root / ".circleci" / "config.yml").exists():
+        return "circleci"
+    return None
+
+
+def detect_package_manager(root: Path) -> list[str]:
+    """Detect package managers from lock files and config."""
+    managers: list[str] = []
+
+    if (root / "package-lock.json").exists():
+        managers.append("npm")
+    if (root / "yarn.lock").exists():
+        managers.append("yarn")
+    if (root / "pnpm-lock.yaml").exists():
+        managers.append("pnpm")
+    if (root / "requirements.txt").exists() or (root / "pyproject.toml").exists():
+        managers.append("pip")
+    if (root / "poetry.lock").exists():
+        managers.append("poetry")
+    if (root / "pom.xml").exists():
+        managers.append("maven")
+    if (root / "build.gradle").exists() or (root / "build.gradle.kts").exists():
+        managers.append("gradle")
+    if (root / "Cargo.toml").exists():
+        managers.append("cargo")
+
+    return managers
