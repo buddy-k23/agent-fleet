@@ -142,5 +142,47 @@ def status(task_id: str = typer.Argument(..., help="Task ID")) -> None:
     typer.echo("Status check not yet implemented.")
 
 
+@app.command()
+def init(
+    repo: str = typer.Option(..., help="Path to the git repository"),
+    dry_run: bool = typer.Option(True, help="Display only, don't save"),
+) -> None:
+    """Onboard a project — scan codebase and recommend agents + workflow."""
+    from agent_fleet.onboarding.recommender import recommend_agents, recommend_workflow
+    from agent_fleet.onboarding.scanner import scan_project
+
+    repo_path = Path(repo).resolve()
+    if not repo_path.exists():
+        typer.echo(f"Error: path does not exist: {repo_path}")
+        raise typer.Exit(1)
+
+    typer.echo(f"🔍 Scanning {repo_path}...\n")
+    profile = scan_project(repo_path)
+
+    typer.echo(f"  Languages:  {', '.join(profile.languages) or 'none'}")
+    typer.echo(f"  Frameworks: {', '.join(profile.frameworks) or 'none'}")
+    typer.echo(f"  Tests:      {', '.join(profile.test_frameworks) or 'none'}")
+    typer.echo(f"  Database:   {', '.join(profile.databases) or 'none'}")
+    typer.echo(f"  CI:         {profile.ci_platform or 'none'}")
+    typer.echo(f"  CLAUDE.md:  {'Found ✓' if profile.has_claude_md else 'Not found'}")
+    typer.echo(f"  LOC:        ~{profile.estimated_loc:,}")
+
+    agents = recommend_agents(profile)
+    typer.echo(f"\n🤖 Recommended agents: ({len(agents)})")
+    for a in agents:
+        typer.echo(f"  {a['name']:18s} {a['model']}")
+
+    wf = recommend_workflow(profile)
+    stage_names = [s["name"] for s in wf["stages"]]
+    typer.echo(f"\n📋 Recommended workflow: {wf['name']}")
+    typer.echo(f"  {' → '.join(stage_names)}")
+
+    if dry_run:
+        typer.echo("\n(dry run — use --no-dry-run to save)")
+    else:
+        typer.echo("\n✅ Saving not yet implemented (use --dry-run)")
+    typer.echo()
+
+
 if __name__ == "__main__":
     app()

@@ -67,6 +67,14 @@ def generate_claude_md(profile: ProjectProfile) -> str:
         sections.append("3. **No CSS class selectors in tests** — use data-testid only")
     sections.append("")
 
+    # Known Pitfalls (framework-specific)
+    pitfalls = _get_framework_pitfalls(profile)
+    if pitfalls:
+        sections.append("## Known Pitfalls\n")
+        for p in pitfalls:
+            sections.append(f"- {p}")
+        sections.append("")
+
     # Commit Convention
     sections.append("## Commit Convention\n")
     sections.append("```")
@@ -76,3 +84,38 @@ def generate_claude_md(profile: ProjectProfile) -> str:
     sections.append("```\n")
 
     return "\n".join(sections)
+
+
+FRAMEWORK_PITFALLS: dict[str, list[str]] = {
+    "spring-boot": [
+        "**JdbcTemplate over JPA** — prefer JdbcTemplate for SQL control",
+        "**No H2 in integration tests** — use real database",
+        "**@SpringBootTest not @WebMvcTest** — avoids eager bean issues",
+    ],
+    "fastapi": [
+        "**Async by default** — use async/await, not blocking calls",
+        "**No global state** — use Depends() for dependency injection",
+        "**Pydantic v2** — use model_dump() not .dict()",
+    ],
+    "react": [
+        "**data-testid on all interactive elements** — only selector for tests",
+        "**No CSS class selectors in tests** — fragile, breaks on style changes",
+        "**Custom hooks for state logic** — keep components thin",
+    ],
+    "django": [
+        "**N+1 queries** — use select_related/prefetch_related",
+        "**Migration ordering** — never modify existing migrations",
+    ],
+    "nextjs": [
+        "**Client/server boundary** — mark client components with 'use client'",
+        "**Server components** — default, avoid useState in them",
+    ],
+}
+
+
+def _get_framework_pitfalls(profile: ProjectProfile) -> list[str]:
+    """Get framework-specific pitfalls."""
+    pitfalls: list[str] = []
+    for fw in profile.frameworks:
+        pitfalls.extend(FRAMEWORK_PITFALLS.get(fw, []))
+    return pitfalls
