@@ -16,6 +16,7 @@ import { Settings } from './pages/Settings';
 import { SubmitTask } from './pages/SubmitTask';
 import { Projects } from './pages/Projects';
 import { Chat } from './pages/Chat';
+import { Admin } from './pages/Admin';
 import { lightTheme, darkTheme } from './theme';
 
 const SIDEBAR_WIDTH = 220;
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { label: 'Agents', path: '/agents', icon: '🤖' },
   { label: 'Workflows', path: '/workflows', icon: '🔀' },
   { label: 'Settings', path: '/settings', icon: '⚙️' },
+  { label: 'Admin', path: '/admin', icon: '🛡️' },
 ];
 
 function AppShell({ children }: { children: React.ReactNode }) {
@@ -144,6 +146,7 @@ export default function App() {
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             </Routes>
           </AppShell>
         </BrowserRouter>
