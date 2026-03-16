@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Container, Link, TextField, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -10,7 +10,6 @@ export default function Signup() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

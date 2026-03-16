@@ -1,11 +1,11 @@
-version: "3.8"
+
 
 services:
   # ============================================================
   # SUPABASE LOCAL
   # ============================================================
   supabase-db:
-    image: supabase/postgres:15.8.1.060
+    image: supabase/postgres:15.6.1.146
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -59,7 +59,7 @@ services:
       PGRST_DB_USE_LEGACY_GUCS: "false"
 
   supabase-studio:
-    image: supabase/studio:20241202-4c4d103
+    image: supabase/studio:latest
     restart: unless-stopped
     ports:
       - "8080:3000"

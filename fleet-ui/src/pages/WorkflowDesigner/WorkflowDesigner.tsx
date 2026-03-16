@@ -40,7 +40,7 @@ export default function WorkflowDesigner() {
   const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
   const [workflowName, setWorkflowName] = useState('Full Development Pipeline');
-  const [workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
+  const [_workflows, setWorkflows] = useState<{ id: string; name: string }[]>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [toast, setToast] = useState('');
 
@@ -122,7 +122,7 @@ export default function WorkflowDesigner() {
           nodes={nodes.map((n) => ({
             ...n,
             style: {
-              border: `2px solid ${STAGE_COLORS[n.data.agent] || '#6B7280'}`,
+              border: `2px solid ${STAGE_COLORS[n.data.agent as string] || '#6B7280'}`,
               borderRadius: 8,
               padding: 8,
               background: 'transparent',

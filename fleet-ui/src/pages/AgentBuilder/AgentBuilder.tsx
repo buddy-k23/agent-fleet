@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Button, Card, CardContent, Chip, Container, Dialog, DialogActions,
   DialogContent, DialogTitle, FormControl, Grid, InputLabel, ListSubheader,
-  MenuItem, Select, TextField, Typography, IconButton, Paper,
+  MenuItem, Select, TextField, Typography, Paper,
 } from '@mui/material';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
