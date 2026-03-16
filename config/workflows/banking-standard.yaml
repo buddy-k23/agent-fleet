@@ -1,0 +1,73 @@
+name: "Banking Standard Change"
+concurrency: 1
+max_cost_usd: 100.0
+classifier_mode: disabled
+stages:
+  - name: plan
+    agent: architect
+    model: anthropic/claude-sonnet-4-6
+    max_iterations: 10
+    gate:
+      type: approval
+
+  - name: impact
+    agent: impact-analyzer
+    depends_on: plan
+    max_iterations: 5
+    gate:
+      type: approval
+
+  - name: backend
+    agent: backend-dev
+    model: anthropic/claude-sonnet-4-6
+    depends_on: impact
+    max_iterations: 8
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: security
+    agent: security-reviewer
+    depends_on: backend
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 80
+      on_fail: route_to
+      max_retries: 2
+
+  - name: compliance
+    agent: compliance-checker
+    depends_on: security
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 90
+      on_fail: halt
+
+  - name: review
+    agent: reviewer
+    model: anthropic/claude-sonnet-4-6
+    depends_on: compliance
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 80
+      on_fail: route_to
+      max_retries: 2
+
+  - name: e2e
+    agent: tester
+    depends_on: review
+    max_iterations: 5
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: deliver
+    agent: integrator
+    depends_on: e2e
+    gate:
+      type: approval

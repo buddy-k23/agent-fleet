@@ -1,0 +1,36 @@
+name: "Banking Emergency Fix"
+concurrency: 1
+max_cost_usd: 50.0
+classifier_mode: disabled
+stages:
+  - name: fix
+    agent: backend-dev
+    model: anthropic/claude-sonnet-4-6
+    max_iterations: 8
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: security
+    agent: security-reviewer
+    depends_on: fix
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 70
+
+  - name: review
+    agent: reviewer
+    depends_on: security
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 75
+      max_retries: 1
+
+  - name: deliver
+    agent: integrator
+    depends_on: review
+    gate:
+      type: approval

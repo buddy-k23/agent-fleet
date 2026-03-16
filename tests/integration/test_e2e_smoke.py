@@ -24,9 +24,10 @@ class TestRegistryAndWorkflow:
     def test_registry_loads_all_builtin_agents(self) -> None:
         registry = AgentRegistry(CONFIG_DIR / "agents")
         agents = registry.list_agents()
-        assert len(agents) == 6
+        assert len(agents) >= 6
         expected = {"architect", "backend-dev", "frontend-dev", "reviewer", "tester", "integrator"}
-        assert set(agents) == expected
+        assert expected.issubset(set(agents))  # core agents present
+        # Banking agents may also be present
 
     def test_default_workflow_loads(self) -> None:
         wf = load_workflow(CONFIG_DIR / "workflows" / "default.yaml")

@@ -5,11 +5,13 @@ classifier_mode: disabled
 stages:
   - name: plan
     agent: architect
+    model: anthropic/claude-haiku-4-5-20251001
     gate:
       type: approval
 
   - name: backend
     agent: backend-dev
+    model: anthropic/claude-haiku-4-5-20251001
     depends_on: plan
     gate:
       type: automated

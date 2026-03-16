@@ -1,0 +1,50 @@
+name: "Banking Schema Change"
+concurrency: 1
+max_cost_usd: 75.0
+classifier_mode: disabled
+stages:
+  - name: plan
+    agent: architect
+    max_iterations: 10
+    gate:
+      type: approval
+
+  - name: dba
+    agent: dba
+    depends_on: plan
+    max_iterations: 8
+    gate:
+      type: automated
+      checks:
+        - tests_pass
+
+  - name: security
+    agent: security-reviewer
+    depends_on: dba
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 80
+
+  - name: compliance
+    agent: compliance-checker
+    depends_on: security
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 90
+
+  - name: review
+    agent: reviewer
+    depends_on: compliance
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 85
+      max_retries: 2
+
+  - name: deliver
+    agent: integrator
+    depends_on: review
+    gate:
+      type: approval
