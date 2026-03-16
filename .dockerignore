@@ -1,0 +1,15 @@
+.venv
+.git
+__pycache__
+*.pyc
+*.db
+.env
+.fleet-worktrees
+fleet-ui/node_modules
+fleet-ui/dist
+fleet-ui/.env
+tests
+docs
+design-system
+.claude
+.superpowers
