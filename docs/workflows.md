@@ -2,45 +2,109 @@
 
 ## YAML Schema
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| name | string | required | Workflow name |
-| concurrency | int | 1 | Max parallel tasks per repo |
-| max_cost_usd | float | null | Cost kill switch |
-| classifier_mode | string | suggest | suggest/override/disabled |
-| stages | list | required | Pipeline stages |
+```yaml
+name: "Pipeline Name"
+concurrency: 1              # Max parallel tasks per repo
+max_cost_usd: 50.0          # Cost kill switch (optional)
+classifier_mode: suggest     # suggest | override | disabled
+stages:
+  - name: plan
+    agent: architect
+    model: anthropic/claude-sonnet-4-6  # Override agent default
+    max_iterations: 10
+    gate:
+      type: approval
 
-## Stage Schema
+  - name: backend
+    agent: backend-dev
+    depends_on: plan         # Runs after plan completes
+    max_iterations: 8
+    gate:
+      type: automated
+      checks: [tests_pass]
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| name | string | required | Stage identifier |
-| agent | string | required | Agent name |
-| model | string | null | Model override |
-| depends_on | str/list | [] | Dependencies |
-| max_iterations | int | null | Override agent default |
-| gate | object | automated | Gate config |
+  - name: review
+    agent: reviewer
+    depends_on: [backend, frontend]  # Runs after both
+    max_iterations: 3
+    gate:
+      type: score
+      min_score: 80
+      on_fail: route_to
+      max_retries: 2
+```
 
 ## Gate Types
 
-| Type | Config | Behavior |
-|------|--------|----------|
-| automated | `checks: [tests_pass]` | Run pytest, pass/fail |
-| score | `min_score: 80` | Parse reviewer JSON, compare |
-| approval | — | Auto-approve (for now) |
+| Type | Config | Pass condition |
+|------|--------|---------------|
+| automated | `checks: [tests_pass]` | pytest exit code 0 |
+| score | `min_score: 80` | Reviewer JSON score ≥ 80 |
+| approval | — | Auto-approve (human review planned) |
+| custom | — | User-defined script |
 
-## Default Pipeline
+## Example: Backend-Only Pipeline
 
+```yaml
+name: "Backend Pipeline"
+stages:
+  - name: plan
+    agent: architect
+    max_iterations: 10
+    gate: {type: approval}
+  - name: backend
+    agent: backend-dev
+    depends_on: plan
+    max_iterations: 8
+    gate: {type: automated, checks: [tests_pass]}
+  - name: review
+    agent: reviewer
+    depends_on: backend
+    max_iterations: 3
+    gate: {type: score, min_score: 80, max_retries: 2}
+  - name: deliver
+    agent: integrator
+    depends_on: review
+    gate: {type: approval}
 ```
-plan → [backend ∥ frontend] → review → e2e → deliver
+
+## Example: Hotfix Pipeline
+
+```yaml
+name: "Hotfix"
+stages:
+  - name: fix
+    agent: backend-dev
+    max_iterations: 5
+    gate: {type: automated, checks: [tests_pass]}
+  - name: review
+    agent: reviewer
+    depends_on: fix
+    max_iterations: 3
+    gate: {type: score, min_score: 70}
+  - name: deliver
+    agent: integrator
+    depends_on: review
+    gate: {type: approval}
 ```
 
 ## Parallelism
 
-Stages with the same `depends_on` run concurrently. No explicit `parallel_with` needed.
+Stages with the same `depends_on` run concurrently automatically:
+```yaml
+- name: backend
+  depends_on: plan    # ← same dependency
+- name: frontend
+  depends_on: plan    # ← runs in parallel with backend
+```
 
 ## Tuning Tips
 
-- `max_iterations`: 10 for architect, 8 for devs, 5 for tester, 3 for reviewer
-- Score threshold: 80 for Sonnet/Opus, lower for Haiku
-- Tester prompt: "Run tests, report results, DO NOT write documentation"
+| Stage | max_iterations | Why |
+|-------|---------------|-----|
+| Architect | 10 | Needs to read multiple files |
+| Dev agents | 8 | Read + write + test |
+| Tester | 5 | Just run tests, don't write docs |
+| Reviewer | 3 | Read + score, minimal tool use |
+
+**Score gate threshold:** 80 for Sonnet/Opus, 40 for Haiku (scores harshly).

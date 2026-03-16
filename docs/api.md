@@ -2,52 +2,100 @@
 
 Base URL: `http://localhost:8000`
 
-## Health
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/health` | No | Returns `{"status":"ok","version":"0.1.0"}` |
+## Authentication
+Protected endpoints require: `Authorization: Bearer <supabase_jwt_token>`
 
-## Tasks
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/v1/tasks` | No | Submit task |
-| GET | `/api/v1/tasks` | No | List tasks |
-| GET | `/api/v1/tasks/{id}` | No | Get task |
+## Endpoints
 
-## Agents
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/agents` | JWT | List user's agents |
-| POST | `/api/v1/agents` | JWT | Create agent |
-| PUT | `/api/v1/agents/{id}` | JWT | Update agent |
-| DELETE | `/api/v1/agents/{id}` | JWT | Delete agent |
-
-## Workflows
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/workflows` | JWT | List workflows |
-| GET | `/api/v1/workflows/{id}` | JWT | Get workflow |
-| POST | `/api/v1/workflows` | JWT | Create workflow |
-| PUT | `/api/v1/workflows/{id}` | JWT | Update workflow |
-| DELETE | `/api/v1/workflows/{id}` | JWT | Delete workflow |
-
-## Profile
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/v1/profile` | JWT | Get profile |
-| PUT | `/api/v1/profile` | JWT | Update profile |
-
-## Webhooks
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/v1/webhooks/github` | Signature | GitHub webhook |
-
-## WebSocket
-| Path | Description |
-|------|-------------|
-| `ws://localhost:8000/ws/chat/{conversation_id}` | Chat with agent |
-
-### Auth Header
+### Health
+```bash
+curl http://localhost:8000/health
+# {"status":"ok","version":"0.1.0"}
 ```
-Authorization: Bearer <supabase_jwt_token>
+
+### Tasks
+```bash
+# Submit task
+curl -X POST http://localhost:8000/api/v1/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"repo":"/path/to/repo","description":"Add multiply","workflow":"default"}'
+# Response (201): {"task_id":"task-a1b2c3d4","status":"queued",...}
+
+# List tasks
+curl http://localhost:8000/api/v1/tasks
+# {"tasks":[...]}
+
+# Get task
+curl http://localhost:8000/api/v1/tasks/task-a1b2c3d4
+# 404 if not found
 ```
+
+### Agents (JWT required)
+```bash
+# List agents
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/agents
+
+# Create agent
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/api/v1/agents \
+  -d '{"name":"DBA","description":"Database agent","model":"anthropic/claude-sonnet-4-6","tools":["code","shell"],"system_prompt":"You are a DBA."}'
+
+# Update: PUT /api/v1/agents/{id}
+# Delete: DELETE /api/v1/agents/{id} → 204
+```
+
+### Workflows (JWT required)
+```bash
+# List: GET /api/v1/workflows
+# Get:  GET /api/v1/workflows/{id}
+# Create: POST /api/v1/workflows
+#   Body: {"name":"Custom","stages":[...],"concurrency":1}
+# Update: PUT /api/v1/workflows/{id}
+# Delete: DELETE /api/v1/workflows/{id} → 204
+```
+
+### API Keys (JWT required)
+```bash
+# List (masked)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/api-keys
+# [{"id":"uuid","provider":"anthropic","masked_key":"sk-ant-***...QwAA","is_active":true}]
+
+# Add key
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/api/v1/api-keys \
+  -d '{"provider":"anthropic","api_key":"sk-ant-...","label":"Production"}'
+
+# Test key: POST /api/v1/api-keys/{id}/test → {"status":"ok"} or {"status":"error"}
+# Delete:   DELETE /api/v1/api-keys/{id} → 204
+```
+
+### Profile (JWT required)
+```bash
+# Get:    GET /api/v1/profile
+# Update: PUT /api/v1/profile -d '{"display_name":"My Name"}'
+```
+
+### Webhooks
+```bash
+# GitHub webhook
+curl -X POST http://localhost:8000/api/v1/webhooks/github \
+  -H "X-GitHub-Event: issues" \
+  -H "Content-Type: application/json" \
+  -d '{"action":"opened","issue":{"number":1,"title":"Bug"},"repository":{"full_name":"org/repo"}}'
+```
+
+### WebSocket (Chat)
+```
+ws://localhost:8000/ws/chat/{conversation_id}
+Send: {"content":"Review this code","agent":"reviewer"}
+Receive: {"type":"token","content":"The "} → {"type":"done","content":"..."}
+```
+
+## Error Codes
+| Status | Meaning |
+|--------|---------|
+| 401 | Missing/invalid JWT |
+| 404 | Not found |
+| 422 | Validation error |

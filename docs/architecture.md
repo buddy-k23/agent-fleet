@@ -1,50 +1,112 @@
 # Architecture Guide
 
-## Overview
+## System Overview
 
-```
-CLI / React UI → FastAPI API → LangGraph Orchestrator → Agent Pool → Git Worktrees
-                                      ↕
-                              Supabase (Auth, DB, Realtime, Storage)
-```
-
-## Orchestrator (LangGraph)
-
-State graph cycle: `route_next → execute_stage → evaluate_gate → (continue or end)`
-
-- **route_next** — uses DAG Router to find ready stages, sets `current_stage`
-- **execute_stage** — creates worktree, runs AgentRunner with tools, stores result
-- **evaluate_gate** — runs checks (pytest), evaluates score, routes back on failure
-- **Conditional edges** — route_next can end the graph, evaluate_gate can loop or end
-
-## Agent Lifecycle (ReAct Loop)
-
-```
-Build messages (system_prompt + task_context)
-    ↓
-LOOP (max_iterations):
-    Call LLM with messages + tool schemas
-    ↓
-    Tool calls? → Execute tools → Append results → Continue
-    No tools?  → Return final answer
+```mermaid
+graph TB
+    CLI[CLI] --> API[FastAPI]
+    UI[React UI] --> API
+    UI --> SB[(Supabase)]
+    API --> ORCH[LangGraph Orchestrator]
+    ORCH --> RUNNER[AgentRunner]
+    RUNNER --> LLM[LLM via LiteLLM]
+    RUNNER --> TOOLS[Tools: code, shell]
+    RUNNER --> WT[Git Worktrees]
+    ORCH --> SB
 ```
 
-## Gate Types
+## Orchestrator State Machine
 
-| Type | How it works |
-|------|-------------|
-| **automated** | Run pytest, pass/fail on exit code |
-| **score** | Parse reviewer JSON `{"score":N}`, compare vs min_score |
-| **approval** | Auto-approve (human-in-the-loop planned) |
-| **custom** | User-defined script |
+```mermaid
+stateDiagram-v2
+    [*] --> route_next
+    route_next --> execute_stage: stages ready
+    route_next --> [*]: all done → completed
+    execute_stage --> evaluate_gate
+    evaluate_gate --> route_next: gate passed
+    evaluate_gate --> route_next: gate failed (retry)
+    evaluate_gate --> [*]: max retries → error
+```
 
-## Parallel Execution
+## Agent ReAct Loop
 
-Stages with same `depends_on` run concurrently via `ThreadPoolExecutor`.
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant R as AgentRunner
+    participant L as LLM
+    participant T as Tools
 
-## Research Sources
+    O->>R: run(config, context, worktree)
+    loop max_iterations
+        R->>L: complete(messages + tools)
+        alt tool_calls
+            L-->>R: tool_calls
+            R->>T: execute(tool, args)
+            T-->>R: result
+            R->>R: append tool result
+        else final answer
+            L-->>R: text response
+            R-->>O: AgentResult
+        end
+    end
+```
 
-- **Composio Agent Orchestrator** — plugin architecture, git worktree per agent, CI-fail reactions
-- **AWS Agent Squad** — intent classifier, agents-as-tools, supervisor pattern
-- **OpenHands** — event-sourced state, sandboxed execution, model-agnostic SDK
-- **LangGraph** — conditional edges, parallel branches, checkpointing
+## Pipeline Flow
+
+```mermaid
+graph LR
+    P[plan<br/>Architect] --> B[backend<br/>Backend Dev]
+    P --> F[frontend<br/>Frontend Dev]
+    B --> R[review<br/>Reviewer]
+    F --> R
+    R -->|score ≥ 80| E[e2e<br/>Tester]
+    R -->|score < 80<br/>route_to| B
+    E --> D[deliver<br/>Integrator]
+```
+
+## Auth Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as React UI
+    participant SB as Supabase Auth
+    participant API as FastAPI
+
+    U->>UI: email + password
+    UI->>SB: signInWithPassword()
+    SB-->>UI: JWT token
+    UI->>API: GET /api/v1/agents (Bearer token)
+    API->>SB: validate JWT
+    SB-->>API: user_id
+    API-->>UI: user's agents (RLS filtered)
+```
+
+## Data Flow
+
+```mermaid
+graph TB
+    SUBMIT[Submit Task] --> DB[(Supabase tasks table)]
+    DB --> ORCH[Orchestrator picks up task]
+    ORCH --> WT[Create git worktree]
+    WT --> AGENT[AgentRunner executes]
+    AGENT --> GATE{Gate evaluation}
+    GATE -->|pass| MERGE[Merge worktree]
+    GATE -->|fail| RETRY[Retry with feedback]
+    MERGE --> NEXT[Next stage]
+    NEXT --> PR[Create PR / Summary]
+    PR --> DB
+    DB -->|Realtime| UI[UI updates live]
+```
+
+## Key Design Decisions
+
+| Decision | Choice | Why |
+|----------|--------|-----|
+| Orchestrator | LangGraph | Conditional edges, checkpointing, parallel branches |
+| LLM access | LiteLLM | 100+ models, unified API, no vendor lock-in |
+| Agent pattern | ReAct loop | Standard for coding agents (OpenHands, SWE-agent) |
+| Isolation | Git worktrees | Lightweight, no Docker overhead, real git history |
+| Database | Supabase | Auth + DB + Realtime + Storage in one |
+| Score gate | Reviewer JSON | Agent specifies route_to target, not hardcoded |
