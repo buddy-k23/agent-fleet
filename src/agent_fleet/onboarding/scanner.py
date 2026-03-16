@@ -2,11 +2,32 @@
 
 import json
 from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import structlog
 
 logger = structlog.get_logger()
+
+
+@dataclass
+class ProjectProfile:
+    """Complete profile of a scanned project."""
+
+    name: str
+    repo_path: str
+    languages: list[str] = field(default_factory=list)
+    frameworks: list[str] = field(default_factory=list)
+    test_frameworks: list[str] = field(default_factory=list)
+    databases: list[str] = field(default_factory=list)
+    package_managers: list[str] = field(default_factory=list)
+    has_ci: bool = False
+    ci_platform: str | None = None
+    has_claude_md: bool = False
+    has_docker: bool = False
+    estimated_loc: int = 0
+    entry_points: list[str] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
 # Directories to skip during scanning
 SKIP_DIRS = {
@@ -206,3 +227,94 @@ def detect_package_manager(root: Path) -> list[str]:
         managers.append("cargo")
 
     return managers
+
+
+def detect_database(root: Path) -> list[str]:
+    """Detect databases from config files and dependencies."""
+    databases: list[str] = []
+
+    # Check .env and config files for DB URLs
+    for name in [".env", ".env.example", "application.yml", "application.properties"]:
+        path = root / name
+        if path.exists():
+            try:
+                content = path.read_text().lower()
+                if "sqlite" in content:
+                    databases.append("sqlite")
+                if "postgres" in content or "postgresql" in content:
+                    databases.append("postgres")
+                if "mysql" in content:
+                    databases.append("mysql")
+                if "oracle" in content:
+                    databases.append("oracle")
+                if "mongodb" in content or "mongo" in content:
+                    databases.append("mongodb")
+            except OSError:
+                pass
+
+    # Check docker-compose for DB services
+    for name in ["docker-compose.yml", "docker-compose.yaml", "compose.yml"]:
+        path = root / name
+        if path.exists():
+            try:
+                content = path.read_text().lower()
+                if "postgres" in content:
+                    databases.append("postgres")
+                if "mysql" in content:
+                    databases.append("mysql")
+                if "mongo" in content:
+                    databases.append("mongodb")
+                if "redis" in content:
+                    databases.append("redis")
+            except OSError:
+                pass
+
+    return list(dict.fromkeys(databases))
+
+
+def estimate_loc(root: Path) -> int:
+    """Estimate lines of code (non-empty lines in source files)."""
+    total = 0
+    count = 0
+    for f in _iter_files(root):
+        if count >= 200:  # Sample limit for speed
+            break
+        try:
+            lines = f.read_text(errors="ignore").splitlines()
+            total += sum(1 for line in lines if line.strip())
+            count += 1
+        except OSError:
+            pass
+    return total
+
+
+def scan_project(root: Path) -> ProjectProfile:
+    """Scan a project and return a complete ProjectProfile."""
+    root = root.resolve()
+    name = root.name
+
+    ci_platform = detect_ci(root)
+
+    profile = ProjectProfile(
+        name=name,
+        repo_path=str(root),
+        languages=detect_languages(root),
+        frameworks=detect_frameworks(root),
+        test_frameworks=detect_tests(root),
+        databases=detect_database(root),
+        package_managers=detect_package_manager(root),
+        has_ci=ci_platform is not None,
+        ci_platform=ci_platform,
+        has_claude_md=(root / "CLAUDE.md").exists(),
+        has_docker=(root / "Dockerfile").exists() or (root / "docker-compose.yml").exists(),
+        estimated_loc=estimate_loc(root),
+    )
+
+    logger.info(
+        "project_scanned",
+        name=name,
+        languages=profile.languages,
+        frameworks=profile.frameworks,
+    )
+
+    return profile
