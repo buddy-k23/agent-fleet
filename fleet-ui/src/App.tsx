@@ -15,6 +15,7 @@ import { Login, Signup } from './pages/Auth';
 import { Settings } from './pages/Settings';
 import { SubmitTask } from './pages/SubmitTask';
 import { Projects } from './pages/Projects';
+import { Chat } from './pages/Chat';
 import { lightTheme, darkTheme } from './theme';
 
 const SIDEBAR_WIDTH = 220;
@@ -22,6 +23,7 @@ const SIDEBAR_WIDTH = 220;
 const NAV_ITEMS = [
   { label: 'Projects', path: '/projects', icon: '📁' },
   { label: 'Dashboard', path: '/', icon: '📊' },
+  { label: 'Chat', path: '/chat', icon: '💬' },
   { label: 'Submit', path: '/submit', icon: '🚀' },
   { label: 'Agents', path: '/agents', icon: '🤖' },
   { label: 'Workflows', path: '/workflows', icon: '🔀' },
@@ -141,6 +143,7 @@ export default function App() {
               <Route path="/submit" element={<ProtectedRoute><SubmitTask /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+              <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
             </Routes>
           </AppShell>
         </BrowserRouter>

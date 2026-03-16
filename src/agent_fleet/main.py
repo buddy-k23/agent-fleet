@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from agent_fleet import __version__
-from agent_fleet.api.routes import agents, profile, tasks, webhooks, workflows
+from agent_fleet.api.routes import agents, chat, profile, tasks, webhooks, workflows
 from agent_fleet.api.schemas import HealthResponse
 from agent_fleet.store.models import Base
 
@@ -52,6 +52,7 @@ def create_app(database_url: str = "sqlite:///./agent_fleet.db") -> FastAPI:
     app.include_router(workflows.router)
     app.include_router(profile.router)
     app.include_router(webhooks.router)
+    app.include_router(chat.router)
 
     @app.get("/health")
     def health() -> HealthResponse:
