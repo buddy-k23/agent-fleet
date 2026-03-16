@@ -209,7 +209,7 @@ export default function Chat() {
                 variant="outlined"
                 onClick={() => sendMessage(qa.prompt)}
                 sx={{ cursor: 'pointer' }}
-                data-testid={`quick-${qa.label.slice(2).toLowerCase().replace(/\s/g, '-')}`}
+                data-testid={`quick-${qa.label.slice(3).toLowerCase().replace(/\s/g, '-')}`}
               />
             ))}
           </Box>
