@@ -71,32 +71,55 @@ class StatusWriter(FleetOrchestrator):
         try:
             result = super().execute_stage(state)
 
-            # Update execution with results
+            # Update execution with results — tolerate Supabase write failures so
+            # a transient persistence error never crashes the pipeline itself.
             stage_output = result.get("stage_outputs", {}).get(stage_name, {})
-            self._repos["executions"].update_status(
-                self._current_execution_id,
-                status="completed",
-                summary=stage_output.get("output", "")[:500],
-                tokens_used=result.get("total_tokens", 0),
-                files_changed=stage_output.get("files_changed", []),
-            )
-            self._repos["events"].append(
-                task_id,
-                "execute_complete",
-                {"stage": stage_name, "tokens": result.get("total_tokens", 0)},
-            )
+            try:
+                self._repos["executions"].update_status(
+                    self._current_execution_id,
+                    status="completed",
+                    summary=stage_output.get("output", "")[:500],
+                    tokens_used=result.get("total_tokens", 0),
+                    files_changed=stage_output.get("files_changed", []),
+                )
+            except Exception as write_err:
+                logger.warning(
+                    "execution_status_write_failed",
+                    task_id=task_id,
+                    stage=stage_name,
+                    error=str(write_err),
+                )
+            try:
+                self._repos["events"].append(
+                    task_id,
+                    "execute_complete",
+                    {"stage": stage_name, "tokens": result.get("total_tokens", 0)},
+                )
+            except Exception:
+                pass
             return result
 
         except Exception as e:
             logger.error("stage_execution_failed", task_id=task_id, stage=stage_name, error=str(e))
-            self._repos["executions"].update_status(
-                self._current_execution_id,
-                status="error",
-                summary=str(e)[:500],
-            )
-            self._repos["events"].append(
-                task_id, "execute_error", {"stage": stage_name, "error": str(e)}
-            )
+            try:
+                self._repos["executions"].update_status(
+                    self._current_execution_id,
+                    status="error",
+                    summary=str(e)[:500],
+                )
+            except Exception as write_err:
+                logger.warning(
+                    "execution_error_status_write_failed",
+                    task_id=task_id,
+                    stage=stage_name,
+                    error=str(write_err),
+                )
+            try:
+                self._repos["events"].append(
+                    task_id, "execute_error", {"stage": stage_name, "error": str(e)}
+                )
+            except Exception:
+                pass
             return {**state, "status": "error", "error_message": str(e)}
 
     def evaluate_gate(self, state: FleetState) -> FleetState:

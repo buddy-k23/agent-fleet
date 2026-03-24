@@ -87,3 +87,100 @@ class TestEnhancedExecutionUpdate:
         assert call_args["tokens_used"] == 5000
         assert call_args["files_changed"] == ["src/main.py"]
         assert call_args["status"] == "completed"
+
+    def test_update_status_sets_finished_at_on_completed(self):
+        """When status is 'completed', the update dict includes finished_at."""
+        client = MagicMock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+            {}
+        ]
+
+        repo = SupabaseExecutionRepository(client)
+        repo.update_status("ex-1", "completed")
+
+        call_args = client.table.return_value.update.call_args[0][0]
+        assert "finished_at" in call_args
+        assert call_args["status"] == "completed"
+
+    def test_update_status_sets_finished_at_on_error(self):
+        """When status is 'error', the update dict includes finished_at."""
+        client = MagicMock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+            {}
+        ]
+
+        repo = SupabaseExecutionRepository(client)
+        repo.update_status("ex-1", "error", summary="Something went wrong")
+
+        call_args = client.table.return_value.update.call_args[0][0]
+        assert "finished_at" in call_args
+        assert call_args["status"] == "error"
+
+    def test_update_status_no_finished_at_for_running(self):
+        """When status is 'running', finished_at must NOT be in the update dict."""
+        client = MagicMock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+            {}
+        ]
+
+        repo = SupabaseExecutionRepository(client)
+        repo.update_status("ex-1", "running")
+
+        call_args = client.table.return_value.update.call_args[0][0]
+        assert "finished_at" not in call_args
+        assert call_args["status"] == "running"
+
+    def test_update_status_with_only_status(self):
+        """Calling update_status with just status (no optional fields) should work."""
+        client = MagicMock()
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+            {}
+        ]
+
+        repo = SupabaseExecutionRepository(client)
+        # Should not raise
+        repo.update_status("ex-1", "completed")
+
+        call_args = client.table.return_value.update.call_args[0][0]
+        assert call_args["status"] == "completed"
+        assert "summary" not in call_args
+        assert "tokens_used" not in call_args
+        assert "files_changed" not in call_args
+
+
+class TestGateResultEdgeCases:
+    def test_create_gate_result_with_score(self):
+        """Create gate result with score=85 and verify it's in the insert payload."""
+        client = MagicMock()
+        row = {
+            "id": "gr-10",
+            "execution_id": "ex-5",
+            "gate_type": "score",
+            "passed": True,
+            "score": 85,
+            "details": None,
+        }
+        client.table.return_value.insert.return_value.execute.return_value.data = [row]
+
+        repo = SupabaseGateResultRepository(client)
+        result = repo.create(
+            execution_id="ex-5",
+            gate_type="score",
+            passed=True,
+            score=85,
+        )
+
+        insert_payload = client.table.return_value.insert.call_args[0][0]
+        assert insert_payload["score"] == 85
+        assert insert_payload["passed"] is True
+        assert result == row
+
+    def test_list_by_execution_empty(self):
+        """Empty result list returns []."""
+        client = MagicMock()
+        mock_chain = client.table.return_value.select.return_value
+        mock_chain.eq.return_value.order.return_value.execute.return_value.data = []
+
+        repo = SupabaseGateResultRepository(client)
+        result = repo.list_by_execution("ex-nonexistent")
+        assert result == []
