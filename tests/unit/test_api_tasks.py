@@ -8,7 +8,7 @@ from agent_fleet.main import create_app
 
 @pytest.fixture
 def client() -> TestClient:  # type: ignore[misc]
-    app = create_app(database_url="sqlite:///:memory:")
+    app = create_app()
     with TestClient(app) as c:
         yield c
 

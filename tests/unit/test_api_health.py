@@ -8,12 +8,12 @@ from agent_fleet.main import create_app
 
 class TestAppFactory:
     def test_create_app_returns_fastapi(self) -> None:
-        app = create_app(database_url="sqlite:///:memory:")
+        app = create_app()
         assert app is not None
         assert app.title == "Agent Fleet"
 
     def test_health_endpoint(self) -> None:
-        app = create_app(database_url="sqlite:///:memory:")
+        app = create_app()
         with TestClient(app) as client:
             resp = client.get("/health")
             assert resp.status_code == 200

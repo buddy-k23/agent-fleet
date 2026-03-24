@@ -6,7 +6,7 @@ from agent_fleet.main import create_app
 
 class TestTaskSubmitWorker:
     def test_submit_returns_201_immediately(self) -> None:
-        app = create_app(database_url="sqlite:///:memory:")
+        app = create_app()
         with TestClient(app) as client:
             resp = client.post("/api/v1/tasks", json={
                 "repo": "/tmp/test", "description": "Test task",

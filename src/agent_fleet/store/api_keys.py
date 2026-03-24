@@ -7,7 +7,7 @@ import os
 import structlog
 from cryptography.fernet import Fernet
 
-from agent_fleet.store.supabase_client import get_supabase_client
+from agent_fleet.api.deps import get_supabase_client
 
 logger = structlog.get_logger()
 
