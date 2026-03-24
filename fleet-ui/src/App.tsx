@@ -63,9 +63,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: '#0C0A1D',
-        background: 'linear-gradient(180deg, #0C0A1D 0%, #12102B 100%)',
-        color: '#E8E5F0',
+        bgcolor: 'background.paper',
+        borderRight: 1,
+        borderColor: 'divider',
+        color: 'text.primary',
       }}
       data-testid="sidebar"
     >
@@ -95,14 +96,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
             fontSize: 15,
             fontWeight: 700,
             letterSpacing: '-0.02em',
-            color: '#E8E5F0',
+            color: 'text.primary',
           }}
         >
           Agent Fleet
         </Typography>
       </Box>
 
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', mx: 2 }} />
+      <Divider sx={{ borderColor: 'divider', mx: 2 }} />
 
       {/* Navigation */}
       <List sx={{ flex: 1, px: 1.5, pt: 1.5 }}>
@@ -120,11 +121,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
                 mb: 0.25,
                 py: 1,
                 px: 1.5,
-                color: active ? '#fff' : 'rgba(232,229,240,0.55)',
-                bgcolor: active ? alpha('#6366F1', 0.15) : 'transparent',
+                color: active ? 'primary.main' : 'text.secondary',
+                bgcolor: active ? alpha('#6366F1', 0.1) : 'transparent',
                 '&:hover': {
-                  bgcolor: active ? alpha('#6366F1', 0.2) : 'rgba(255,255,255,0.05)',
-                  color: '#fff',
+                  bgcolor: active ? alpha('#6366F1', 0.15) : 'action.hover',
+                  color: active ? 'primary.main' : 'text.primary',
                 },
                 transition: 'all 150ms ease',
               }}
@@ -133,7 +134,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
               <ListItemIcon
                 sx={{
                   minWidth: 36,
-                  color: active ? '#818CF8' : 'rgba(232,229,240,0.4)',
+                  color: active ? 'primary.light' : 'text.secondary',
                 }}
               >
                 <Icon fontSize="small" />
@@ -163,14 +164,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
       </List>
 
       {/* User section */}
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)', mx: 2 }} />
+      <Divider sx={{ borderColor: 'divider', mx: 2 }} />
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar
           sx={{
             width: 32,
             height: 32,
-            bgcolor: alpha('#6366F1', 0.25),
-            color: '#818CF8',
+            bgcolor: alpha('#6366F1', 0.15),
+            color: 'primary.light',
             fontSize: 13,
             fontWeight: 600,
           }}
@@ -181,7 +182,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <Typography
             variant="body2"
             noWrap
-            sx={{ fontSize: 13, color: 'rgba(232,229,240,0.7)' }}
+            sx={{ fontSize: 13, color: 'text.secondary' }}
           >
             {user.email}
           </Typography>
@@ -189,7 +190,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <IconButton
           size="small"
           onClick={() => signOut()}
-          sx={{ color: 'rgba(232,229,240,0.4)', '&:hover': { color: '#EF4444' } }}
+          sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
           data-testid="nav-logout"
         >
           <LogoutIcon fontSize="small" />
@@ -202,7 +203,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {isMobile ? (
         <>
-          <AppBar position="fixed" sx={{ bgcolor: '#0C0A1D' }} data-testid="app-bar">
+          <AppBar position="fixed" sx={{ bgcolor: 'background.paper' }} data-testid="app-bar">
             <Toolbar>
               <IconButton
                 color="inherit"
