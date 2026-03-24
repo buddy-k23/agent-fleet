@@ -46,3 +46,30 @@ def test_has_agent() -> None:
 def test_empty_directory() -> None:
     registry = AgentRegistry(Path("/nonexistent/path"))
     assert registry.list_agents() == []
+
+
+def test_from_configs_builds_registry_from_dicts() -> None:
+    """Build AgentRegistry from list of config dicts (Supabase rows)."""
+    configs = [
+        {
+            "name": "Architect",
+            "description": "Designs solutions",
+            "capabilities": ["code_analysis"],
+            "tools": ["code"],
+            "default_model": "anthropic/claude-opus-4-6",
+            "system_prompt": "You are an architect.",
+        },
+        {
+            "name": "Tester",
+            "description": "Writes tests",
+            "capabilities": ["testing"],
+            "tools": ["code", "shell"],
+            "default_model": "anthropic/claude-sonnet-4-6",
+            "system_prompt": "You are a tester.",
+        },
+    ]
+    registry = AgentRegistry.from_configs(configs)
+    assert registry.has("Architect")
+    assert registry.has("Tester")
+    assert registry.get("Architect").default_model == "anthropic/claude-opus-4-6"
+    assert registry.list_agents() == ["Architect", "Tester"]
