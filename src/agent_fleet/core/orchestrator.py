@@ -36,14 +36,27 @@ class FleetOrchestrator:
 
     def __init__(
         self,
-        workflow_path: Path,
-        agents_dir: Path,
+        task_id: str = "",
+        *,
+        workflow: WorkflowConfig | None = None,
+        registry: AgentRegistry | None = None,
+        workflow_path: Path | None = None,
+        agents_dir: Path | None = None,
         repo_path: Path | None = None,
     ) -> None:
-        self._workflow = load_workflow(workflow_path)
+        if workflow and registry:
+            self._workflow = workflow
+            self._registry = registry
+        elif workflow_path and agents_dir:
+            self._workflow = load_workflow(workflow_path)
+            self._registry = AgentRegistry(agents_dir)
+        else:
+            raise ValueError(
+                "Provide either (workflow, registry) or (workflow_path, agents_dir)"
+            )
         self._router = Router(self._workflow)
-        self._registry = AgentRegistry(agents_dir)
         self._repo_path = repo_path
+        self._task_id = task_id
 
     @property
     def workflow(self) -> WorkflowConfig:
