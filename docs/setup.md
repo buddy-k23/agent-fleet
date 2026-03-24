@@ -76,6 +76,9 @@ uvicorn agent_fleet.main:app --reload --port 8000
 
 # Terminal 2
 cd fleet-ui && npm run dev
+
+# Terminal 3
+python -m agent_fleet.worker
 ```
 
 ### 7. Verify

@@ -10,9 +10,15 @@ cd fleet-ui && npm install && npx playwright install chromium
 
 ## Running Tests
 
+> **Integration tests** require the worker process to be running alongside the API server.
+> Start it before running `pytest tests/integration/`:
+> ```bash
+> python -m agent_fleet.worker &
+> ```
+
 | Suite | Command | Count |
 |-------|---------|-------|
-| Python unit | `pytest tests/unit/` | ~250 |
+| Python unit | `pytest tests/unit/` | ~304 |
 | Python integration | `pytest tests/integration/` | ~40 |
 | Playwright E2E | `cd fleet-ui && npx playwright test` | ~45 |
 | Lint | `ruff check src/ cli/ tests/` | 0 errors |

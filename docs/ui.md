@@ -23,7 +23,8 @@
 - Repository path input
 - Task description (textarea)
 - Workflow dropdown (populated from Supabase)
-- Submit → redirects to Task Monitor
+- Optional project selector
+- Submit → calls `POST /api/v1/tasks` (API-mediated, not a direct Supabase insert) → redirects to Task Monitor
 
 ### Task Monitor (`/tasks/:id`)
 - **Pipeline Visualizer** — 6 stage nodes with status colors (gray/indigo/green/red)

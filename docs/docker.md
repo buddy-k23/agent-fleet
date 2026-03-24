@@ -22,6 +22,7 @@ This runs 7 steps:
 | Supabase (all) | 54321-54323 | `supabase start` (CLI managed) |
 | Backend | 8000 | Docker container |
 | Frontend | 3001 | Docker container (nginx) |
+| Worker | — | Docker container (no exposed port) |
 
 ## Troubleshooting
 
@@ -74,3 +75,11 @@ supabase stop              # Stop Supabase
 | VITE_SUPABASE_URL | Frontend | Build-time Supabase URL |
 | VITE_SUPABASE_ANON_KEY | Frontend | Build-time public key |
 | VITE_API_BASE | Frontend | Backend API URL |
+| MAX_CONCURRENT_TASKS | Worker | Max parallel task executions (default: 4) |
+| POLL_INTERVAL_SECONDS | Worker | How often worker polls for new tasks (default: 5) |
+
+## Worker
+
+The worker process picks up queued tasks and runs agent pipelines. It mounts `worker-worktrees:/tmp/fleet-worktrees` for git worktree isolation.
+
+**Healthcheck:** `python -m agent_fleet.worker --health`

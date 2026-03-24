@@ -18,8 +18,21 @@ curl http://localhost:8000/health
 # Submit task
 curl -X POST http://localhost:8000/api/v1/tasks \
   -H "Content-Type: application/json" \
-  -d '{"repo":"/path/to/repo","description":"Add multiply","workflow":"default"}'
-# Response (201): {"task_id":"task-a1b2c3d4","status":"queued",...}
+  -d '{"repo":"/path/to/repo","description":"Add multiply","workflow_id":"wf-uuid-1234","project_id":"proj-uuid-5678"}'
+# project_id is optional
+# Response (201):
+# {
+#   "task_id": "task-a1b2c3d4",
+#   "status": "queued",
+#   "current_stage": null,
+#   "completed_stages": [],
+#   "total_tokens": 0,
+#   "total_cost_usd": 0.0,
+#   "pr_url": null,
+#   "error_message": null,
+#   "created_at": "2026-03-24T00:00:00Z",
+#   "updated_at": "2026-03-24T00:00:00Z"
+# }
 
 # List tasks
 curl http://localhost:8000/api/v1/tasks
@@ -28,6 +41,10 @@ curl http://localhost:8000/api/v1/tasks
 # Get task
 curl http://localhost:8000/api/v1/tasks/task-a1b2c3d4
 # 404 if not found
+
+# Cancel task (queued or running)
+curl -X DELETE http://localhost:8000/api/v1/tasks/task-a1b2c3d4/cancel
+# Response (200): {"task_id":"task-a1b2c3d4","status":"cancelled"}
 ```
 
 ### Agents (JWT required)
