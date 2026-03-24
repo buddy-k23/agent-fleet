@@ -25,15 +25,16 @@ def clear_lru_caches():
 
 def test_get_supabase_client_returns_client_when_configured():
     """Anon client created from SUPABASE_URL + SUPABASE_ANON_KEY."""
-    with patch.dict(
-        "os.environ",
-        {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_ANON_KEY": "anon-key"},
-    ), patch("agent_fleet.api.deps.create_client") as mock_create:
+    with (
+        patch.dict(
+            "os.environ",
+            {"SUPABASE_URL": "https://test.supabase.co", "SUPABASE_ANON_KEY": "anon-key"},
+        ),
+        patch("agent_fleet.api.deps.create_client") as mock_create,
+    ):
         mock_create.return_value = MagicMock()
         client = get_supabase_client()
-        mock_create.assert_called_once_with(
-            "https://test.supabase.co", "anon-key"
-        )
+        mock_create.assert_called_once_with("https://test.supabase.co", "anon-key")
         assert client is not None
 
 
@@ -46,18 +47,19 @@ def test_get_supabase_client_raises_when_not_configured():
 
 def test_get_service_client_uses_service_role_key():
     """Service client uses SUPABASE_SERVICE_ROLE_KEY."""
-    with patch.dict(
-        "os.environ",
-        {
-            "SUPABASE_URL": "https://test.supabase.co",
-            "SUPABASE_SERVICE_ROLE_KEY": "service-key",
-        },
-    ), patch("agent_fleet.api.deps.create_client") as mock_create:
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "service-key",
+            },
+        ),
+        patch("agent_fleet.api.deps.create_client") as mock_create,
+    ):
         mock_create.return_value = MagicMock()
         client = get_service_client()
-        mock_create.assert_called_once_with(
-            "https://test.supabase.co", "service-key"
-        )
+        mock_create.assert_called_once_with("https://test.supabase.co", "service-key")
         assert client is not None
 
 

@@ -32,8 +32,13 @@ def anon_client():
 class TestSupabaseConnection:
     def test_tables_exist(self, svc_client) -> None:  # type: ignore[no-untyped-def]
         tables = [
-            "profiles", "agents", "workflows", "tasks",
-            "executions", "gate_results", "events",
+            "profiles",
+            "agents",
+            "workflows",
+            "tasks",
+            "executions",
+            "gate_results",
+            "events",
         ]
         for table in tables:
             result = svc_client.table(table).select("*").limit(1).execute()

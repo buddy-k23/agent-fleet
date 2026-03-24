@@ -37,7 +37,8 @@ class TestSupabaseGateResultRepository:
         """List gate results ordered by created_at."""
         client = MagicMock()
         rows = [{"id": "gr-1"}, {"id": "gr-2"}]
-        client.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value.data = rows
+        mock_chain = client.table.return_value.select.return_value
+        mock_chain.eq.return_value.order.return_value.execute.return_value.data = rows
 
         repo = SupabaseGateResultRepository(client)
         result = repo.list_by_execution("ex-1")
@@ -48,7 +49,8 @@ class TestAtomicPickup:
     def test_atomic_pickup_succeeds(self):
         """Atomic pickup returns True when row is claimed."""
         client = MagicMock()
-        client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+        mock_chain = client.table.return_value.update.return_value
+        mock_chain.eq.return_value.eq.return_value.execute.return_value.data = [
             {"id": "task-1", "status": "running"}
         ]
 
@@ -58,7 +60,8 @@ class TestAtomicPickup:
     def test_atomic_pickup_fails_when_already_claimed(self):
         """Atomic pickup returns False when another worker grabbed it."""
         client = MagicMock()
-        client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+        mock_chain = client.table.return_value.update.return_value
+        mock_chain.eq.return_value.eq.return_value.execute.return_value.data = []
 
         repo = SupabaseTaskRepository(client)
         assert repo.atomic_pickup("task-1") is False
@@ -68,7 +71,9 @@ class TestEnhancedExecutionUpdate:
     def test_update_status_with_tokens_and_files(self):
         """Update execution with tokens_used and files_changed."""
         client = MagicMock()
-        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [{}]
+        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+            {}
+        ]
 
         repo = SupabaseExecutionRepository(client)
         repo.update_status(

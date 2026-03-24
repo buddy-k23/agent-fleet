@@ -80,16 +80,18 @@ def test_orchestrator_accepts_in_memory_config() -> None:
             )
         ],
     )
-    registry = AgentRegistry.from_configs([
-        {
-            "name": "Architect",
-            "description": "Plans",
-            "capabilities": ["code_analysis"],
-            "tools": ["code"],
-            "default_model": "anthropic/claude-opus-4-6",
-            "system_prompt": "You are an architect.",
-        }
-    ])
+    registry = AgentRegistry.from_configs(
+        [
+            {
+                "name": "Architect",
+                "description": "Plans",
+                "capabilities": ["code_analysis"],
+                "tools": ["code"],
+                "default_model": "anthropic/claude-opus-4-6",
+                "system_prompt": "You are an architect.",
+            }
+        ]
+    )
 
     orch = FleetOrchestrator(
         task_id="test-task-1",

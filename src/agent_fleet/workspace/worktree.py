@@ -24,9 +24,7 @@ class WorktreeManager:
         self._worktrees_dir = repo_root / ".fleet-worktrees"
         self._worktrees_dir.mkdir(exist_ok=True)
 
-    def create(
-        self, task_id: str, stage: str, base_branch: str | None = None
-    ) -> Path:
+    def create(self, task_id: str, stage: str, base_branch: str | None = None) -> Path:
         """Create a new worktree for a task stage.
 
         Returns the path to the new worktree directory.

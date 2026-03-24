@@ -61,7 +61,9 @@ class TestDetectFrameworks:
 
     def test_detects_spring_boot(self, tmp_path: Path) -> None:
         pom = tmp_path / "pom.xml"
-        pom.write_text("<project><parent><artifactId>spring-boot-starter-parent</artifactId></parent></project>")
+        pom.write_text(
+            "<project><parent><artifactId>spring-boot-starter-parent</artifactId></parent></project>"
+        )
         result = detect_frameworks(tmp_path)
         assert "spring-boot" in result
 

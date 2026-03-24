@@ -1,8 +1,7 @@
 """Tests for the fleet-worker process — poll loop, pickup, concurrency, shutdown."""
 
-import time
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
-from datetime import datetime, timezone
 
 import pytest
 
@@ -35,7 +34,10 @@ class TestPollLoop:
             "workflow_id": "wf-1",
             "user_id": "user-1",
         }
-        mock_service_client.table.return_value.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [task_row]
+        chain = mock_service_client.table.return_value.select.return_value
+        chain.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+            task_row
+        ]
 
         worker._tasks_repo.atomic_pickup = MagicMock(return_value=True)
         worker._tasks_repo.update_status = MagicMock()
@@ -49,8 +51,17 @@ class TestPollLoop:
 
     def test_skips_task_if_atomic_pickup_fails(self, worker, mock_service_client):
         """Worker skips task if another worker grabbed it first."""
-        task_row = {"id": "task-1", "repo": "/tmp/repo", "description": "Fix bug", "workflow_id": "wf-1", "user_id": "user-1"}
-        mock_service_client.table.return_value.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [task_row]
+        task_row = {
+            "id": "task-1",
+            "repo": "/tmp/repo",
+            "description": "Fix bug",
+            "workflow_id": "wf-1",
+            "user_id": "user-1",
+        }
+        chain = mock_service_client.table.return_value.select.return_value
+        chain.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+            task_row
+        ]
 
         worker._tasks_repo.atomic_pickup = MagicMock(return_value=False)
 
@@ -92,7 +103,7 @@ class TestStaleTaskRecovery:
     def test_does_not_requeue_recently_started_tasks(self, worker):
         """Tasks started less than 30 min ago are NOT re-queued."""
         recent_task = [
-            {"id": "task-recent", "started_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "task-recent", "started_at": datetime.now(UTC).isoformat()},
         ]
         worker._tasks_repo.list_by_status = MagicMock(return_value=recent_task)
         worker._tasks_repo.update_status = MagicMock()

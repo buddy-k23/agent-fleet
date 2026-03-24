@@ -3,7 +3,7 @@
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from agent_fleet.worker import FleetWorker
 
@@ -17,7 +17,7 @@ def main() -> None:
             with open(HEARTBEAT_FILE) as f:
                 data = json.load(f)
             last_beat = datetime.fromisoformat(data["timestamp"])
-            age_seconds = (datetime.now(timezone.utc) - last_beat).total_seconds()
+            age_seconds = (datetime.now(UTC) - last_beat).total_seconds()
             if age_seconds < 30:
                 print("healthy")
                 sys.exit(0)

@@ -1,4 +1,5 @@
 """GitHub/GitLab webhook handlers."""
+
 import hashlib
 import hmac
 import os
@@ -16,9 +17,7 @@ def _verify_github_signature(payload: bytes, signature: str | None) -> bool:
     secret = os.getenv("GITHUB_WEBHOOK_SECRET", "")
     if not secret or not signature:
         return False
-    expected = "sha256=" + hmac.new(
-        secret.encode(), payload, hashlib.sha256
-    ).hexdigest()
+    expected = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature)
 
 
@@ -43,6 +42,7 @@ async def github_webhook(
 
     if event_type == "issues" and payload.get("action") in ("opened", "labeled"):
         from agent_fleet.integrations.github import issue_to_task
+
         task_info = issue_to_task(payload)
         logger.info("webhook_task_created", task=task_info)
         return {"status": "accepted", "task": task_info}

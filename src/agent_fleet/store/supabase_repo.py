@@ -1,5 +1,7 @@
 """Supabase-backed repositories for Agent Fleet state store."""
 
+from datetime import UTC
+
 import structlog
 
 from supabase import Client
@@ -16,14 +18,20 @@ class SupabaseTaskRepository:
     def create(
         self, task_id: str, user_id: str, repo_path: str, description: str, workflow: str
     ) -> dict:
-        result = self._client.table("tasks").insert({
-            "id": task_id,
-            "user_id": user_id,
-            "repo": repo_path,
-            "description": description,
-            "workflow_name": workflow,
-            "status": "queued",
-        }).execute()
+        result = (
+            self._client.table("tasks")
+            .insert(
+                {
+                    "id": task_id,
+                    "user_id": user_id,
+                    "repo": repo_path,
+                    "description": description,
+                    "workflow_name": workflow,
+                    "status": "queued",
+                }
+            )
+            .execute()
+        )
         logger.info("task_created", task_id=task_id)
         return result.data[0] if result.data else {}
 
@@ -52,11 +60,11 @@ class SupabaseTaskRepository:
 
     def atomic_pickup(self, task_id: str) -> bool:
         """Atomically claim a queued task. Returns True if this worker won the race."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = (
             self._client.table("tasks")
-            .update({"status": "running", "started_at": datetime.now(timezone.utc).isoformat()})
+            .update({"status": "running", "started_at": datetime.now(UTC).isoformat()})
             .eq("id", task_id)
             .eq("status", "queued")
             .execute()
@@ -70,16 +78,20 @@ class SupabaseExecutionRepository:
     def __init__(self, client: Client) -> None:
         self._client = client
 
-    def create(
-        self, task_id: str, stage: str, agent: str, model: str
-    ) -> dict:
-        result = self._client.table("executions").insert({
-            "task_id": task_id,
-            "stage": stage,
-            "agent": agent,
-            "model": model,
-            "status": "running",
-        }).execute()
+    def create(self, task_id: str, stage: str, agent: str, model: str) -> dict:
+        result = (
+            self._client.table("executions")
+            .insert(
+                {
+                    "task_id": task_id,
+                    "stage": stage,
+                    "agent": agent,
+                    "model": model,
+                    "status": "running",
+                }
+            )
+            .execute()
+        )
         return result.data[0] if result.data else {}
 
     def update_status(
@@ -99,8 +111,9 @@ class SupabaseExecutionRepository:
         if files_changed is not None:
             data["files_changed"] = files_changed
         if status in ("completed", "error"):
-            from datetime import datetime, timezone
-            data["finished_at"] = datetime.now(timezone.utc).isoformat()
+            from datetime import datetime
+
+            data["finished_at"] = datetime.now(UTC).isoformat()
         self._client.table("executions").update(data).eq("id", execution_id).execute()
 
     def list_by_task(self, task_id: str) -> list[dict]:
@@ -195,21 +208,12 @@ class SupabaseAgentRepository:
 
     def list_by_user(self, user_id: str) -> list[dict]:
         result = (
-            self._client.table("agents")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("name")
-            .execute()
+            self._client.table("agents").select("*").eq("user_id", user_id).order("name").execute()
         )
         return result.data
 
     def update(self, agent_id: str, agent_data: dict) -> dict:
-        result = (
-            self._client.table("agents")
-            .update(agent_data)
-            .eq("id", agent_id)
-            .execute()
-        )
+        result = self._client.table("agents").update(agent_data).eq("id", agent_id).execute()
         return result.data[0] if result.data else {}
 
     def delete(self, agent_id: str) -> None:
@@ -240,20 +244,12 @@ class SupabaseWorkflowRepository:
         return result.data
 
     def get(self, workflow_id: str) -> dict | None:
-        result = (
-            self._client.table("workflows")
-            .select("*")
-            .eq("id", workflow_id)
-            .execute()
-        )
+        result = self._client.table("workflows").select("*").eq("id", workflow_id).execute()
         return result.data[0] if result.data else None
 
     def update(self, workflow_id: str, workflow_data: dict) -> dict:
         result = (
-            self._client.table("workflows")
-            .update(workflow_data)
-            .eq("id", workflow_id)
-            .execute()
+            self._client.table("workflows").update(workflow_data).eq("id", workflow_id).execute()
         )
         return result.data[0] if result.data else {}
 

@@ -33,10 +33,5 @@ def update_profile(
     allowed = {"display_name", "default_workflow", "preferences"}
     filtered = {k: v for k, v in profile_data.items() if k in allowed}
 
-    result = (
-        client.table("profiles")
-        .update(filtered)
-        .eq("id", user["id"])
-        .execute()
-    )
+    result = client.table("profiles").update(filtered).eq("id", user["id"]).execute()
     return result.data[0] if result.data else {}

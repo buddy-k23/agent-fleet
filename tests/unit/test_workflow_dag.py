@@ -37,9 +37,7 @@ class TestDAGResolution:
 
     def test_all_done_returns_empty(self) -> None:
         wf = load_workflow(FIXTURES_DIR / "test-workflow.yaml")
-        ready = wf.get_ready_stages(
-            completed={"plan", "backend", "frontend", "review"}
-        )
+        ready = wf.get_ready_stages(completed={"plan", "backend", "frontend", "review"})
         assert len(ready) == 0
 
     def test_completed_stages_not_returned(self) -> None:

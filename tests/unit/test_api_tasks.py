@@ -9,7 +9,6 @@ from agent_fleet.api.deps import get_current_user
 from agent_fleet.api.routes.tasks import _get_repo
 from agent_fleet.main import create_app
 
-
 TEST_USER = {"id": "user-123", "email": "test@example.com"}
 
 

@@ -73,7 +73,10 @@ async def cancel_task(
     if not task or task.get("user_id") != user["id"]:
         raise HTTPException(status_code=404, detail="Task not found")
     if task["status"] not in ("queued", "running"):
-        raise HTTPException(status_code=400, detail=f"Cannot cancel task with status '{task['status']}'")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel task with status '{task['status']}'",
+        )
 
     repo.update_status(task_id, "cancelled")
     logger.info("task_cancelled", task_id=task_id, user_id=user["id"])

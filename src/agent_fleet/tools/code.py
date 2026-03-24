@@ -92,9 +92,7 @@ class ListFilesTool(BaseTool):
         if not target_dir.is_dir():
             return {"error": f"Not a directory: {input.get('path', '.')}"}
         files = [
-            str(f.relative_to(self._root))
-            for f in sorted(target_dir.rglob("*"))
-            if f.is_file()
+            str(f.relative_to(self._root)) for f in sorted(target_dir.rglob("*")) if f.is_file()
         ]
         return {"files": files[:500]}
 

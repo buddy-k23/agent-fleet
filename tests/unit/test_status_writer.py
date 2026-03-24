@@ -46,24 +46,26 @@ def mock_registry():
     """Minimal agent registry for testing."""
     from agent_fleet.agents.registry import AgentRegistry
 
-    return AgentRegistry.from_configs([
-        {
-            "name": "Architect",
-            "description": "Plans",
-            "capabilities": ["code_analysis"],
-            "tools": ["code"],
-            "default_model": "anthropic/claude-opus-4-6",
-            "system_prompt": "You are an architect.",
-        },
-        {
-            "name": "Backend",
-            "description": "Implements",
-            "capabilities": ["coding"],
-            "tools": ["code", "shell"],
-            "default_model": "anthropic/claude-sonnet-4-6",
-            "system_prompt": "You are a developer.",
-        },
-    ])
+    return AgentRegistry.from_configs(
+        [
+            {
+                "name": "Architect",
+                "description": "Plans",
+                "capabilities": ["code_analysis"],
+                "tools": ["code"],
+                "default_model": "anthropic/claude-opus-4-6",
+                "system_prompt": "You are an architect.",
+            },
+            {
+                "name": "Backend",
+                "description": "Implements",
+                "capabilities": ["coding"],
+                "tools": ["code", "shell"],
+                "default_model": "anthropic/claude-sonnet-4-6",
+                "system_prompt": "You are a developer.",
+            },
+        ]
+    )
 
 
 class TestRouteNext:
@@ -122,7 +124,12 @@ class TestRouteNext:
 
 
 class TestExecuteStage:
-    def test_execute_stage_creates_and_updates_execution(self, mock_repos, mock_workflow, mock_registry):
+    def test_execute_stage_creates_and_updates_execution(
+        self,
+        mock_repos,
+        mock_workflow,
+        mock_registry,
+    ):
         """execute_stage creates execution row before, updates after."""
         writer = StatusWriter(
             repos=mock_repos,
@@ -168,7 +175,7 @@ class TestExecuteStage:
 
         with patch.object(writer.__class__.__bases__[0], "execute_stage") as mock_super:
             mock_super.side_effect = RuntimeError("LLM failed")
-            result = writer.execute_stage(state)
+            writer.execute_stage(state)
 
         mock_repos["executions"].update_status.assert_called_once()
         update_call = mock_repos["executions"].update_status.call_args

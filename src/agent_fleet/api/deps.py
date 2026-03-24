@@ -5,6 +5,7 @@ from functools import lru_cache
 
 import structlog
 from fastapi import HTTPException, Request
+
 from supabase import Client, create_client
 
 logger = structlog.get_logger()

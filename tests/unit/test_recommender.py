@@ -6,11 +6,20 @@ from agent_fleet.onboarding.scanner import ProjectProfile
 
 def _make_profile(**kwargs) -> ProjectProfile:  # type: ignore[no-untyped-def]
     defaults = {
-        "name": "test", "repo_path": "/test",
-        "languages": ["python"], "frameworks": ["fastapi"],
-        "test_frameworks": ["pytest"], "databases": [], "package_managers": ["pip"],
-        "has_ci": False, "ci_platform": None, "has_claude_md": False,
-        "has_docker": False, "estimated_loc": 1000, "entry_points": [], "metadata": {},
+        "name": "test",
+        "repo_path": "/test",
+        "languages": ["python"],
+        "frameworks": ["fastapi"],
+        "test_frameworks": ["pytest"],
+        "databases": [],
+        "package_managers": ["pip"],
+        "has_ci": False,
+        "ci_platform": None,
+        "has_claude_md": False,
+        "has_docker": False,
+        "estimated_loc": 1000,
+        "entry_points": [],
+        "metadata": {},
     }
     defaults.update(kwargs)
     return ProjectProfile(**defaults)

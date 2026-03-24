@@ -19,10 +19,14 @@ def upload_stage_output(task_id: str, stage: str, output: dict) -> str | None:
     content = json.dumps(output, indent=2).encode()
 
     try:
-        client.storage.from_("task-outputs").upload(path, content, {
-            "content-type": "application/json",
-            "upsert": "true",
-        })
+        client.storage.from_("task-outputs").upload(
+            path,
+            content,
+            {
+                "content-type": "application/json",
+                "upsert": "true",
+            },
+        )
         logger.info("storage_upload", bucket="task-outputs", path=path)
         return path
     except Exception as e:
@@ -40,10 +44,14 @@ def upload_task_log(task_id: str, events: list[dict]) -> str | None:
     content = json.dumps(events, indent=2, default=str).encode()
 
     try:
-        client.storage.from_("task-logs").upload(path, content, {
-            "content-type": "application/json",
-            "upsert": "true",
-        })
+        client.storage.from_("task-logs").upload(
+            path,
+            content,
+            {
+                "content-type": "application/json",
+                "upsert": "true",
+            },
+        )
         logger.info("storage_upload", bucket="task-logs", path=path)
         return path
     except Exception as e:

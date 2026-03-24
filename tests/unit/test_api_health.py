@@ -1,6 +1,5 @@
 """Tests for FastAPI app factory and health endpoint."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from agent_fleet.api.schemas import HealthResponse

@@ -29,18 +29,41 @@ class ProjectProfile:
     entry_points: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
+
 # Directories to skip during scanning
 SKIP_DIRS = {
-    "node_modules", ".git", ".venv", "venv", "__pycache__", ".fleet-worktrees",
-    "dist", "build", "target", ".next", ".nuxt", "vendor", ".tox", "egg-info",
+    "node_modules",
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".fleet-worktrees",
+    "dist",
+    "build",
+    "target",
+    ".next",
+    ".nuxt",
+    "vendor",
+    ".tox",
+    "egg-info",
 }
 
 # File extension → language mapping
 EXT_TO_LANG: dict[str, str] = {
-    ".py": "python", ".java": "java", ".ts": "typescript", ".tsx": "typescript",
-    ".js": "javascript", ".jsx": "javascript", ".go": "go", ".rs": "rust",
-    ".rb": "ruby", ".cs": "csharp", ".kt": "kotlin", ".swift": "swift",
-    ".php": "php", ".scala": "scala",
+    ".py": "python",
+    ".java": "java",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".go": "go",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".cs": "csharp",
+    ".kt": "kotlin",
+    ".swift": "swift",
+    ".php": "php",
+    ".scala": "scala",
 }
 
 

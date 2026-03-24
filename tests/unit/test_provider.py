@@ -141,9 +141,7 @@ def test_completion_returns_tool_calls(mock_completion: MagicMock) -> None:
     mock_choice.message.model_dump.return_value = {
         "role": "assistant",
         "content": None,
-        "tool_calls": [
-            {"id": "call_123", "function": {"name": "read_file", "arguments": "{}"}}
-        ],
+        "tool_calls": [{"id": "call_123", "function": {"name": "read_file", "arguments": "{}"}}],
     }
 
     mock_result = MagicMock()
@@ -191,7 +189,8 @@ def test_rate_limit_retries_then_succeeds(
     mock_choice.message.content = "Success after retry"
     mock_choice.message.tool_calls = None
     mock_choice.message.model_dump.return_value = {
-        "role": "assistant", "content": "Success after retry"
+        "role": "assistant",
+        "content": "Success after retry",
     }
     mock_success = MagicMock()
     mock_success.choices = [mock_choice]
@@ -216,9 +215,7 @@ def test_rate_limit_retries_then_succeeds(
 
 @patch("agent_fleet.models.provider.time.sleep")
 @patch("agent_fleet.models.provider.litellm_completion")
-def test_rate_limit_exhausts_retries(
-    mock_completion: MagicMock, mock_sleep: MagicMock
-) -> None:
+def test_rate_limit_exhausts_retries(mock_completion: MagicMock, mock_sleep: MagicMock) -> None:
     """Rate limit on all retries raises LLMProviderError."""
     from litellm.exceptions import RateLimitError
 

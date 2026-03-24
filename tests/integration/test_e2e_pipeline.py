@@ -24,21 +24,29 @@ def test_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.com"],
-        cwd=repo, capture_output=True, check=True,
+        cwd=repo,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "T"],
-        cwd=repo, capture_output=True, check=True,
+        cwd=repo,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
-        cwd=repo, capture_output=True, check=True,
+        cwd=repo,
+        capture_output=True,
+        check=True,
     )
     # Create task branch
     subprocess.run(
         ["git", "branch", "fleet/task-e2e"],
-        cwd=repo, capture_output=True, check=True,
+        cwd=repo,
+        capture_output=True,
+        check=True,
     )
     return repo
 
@@ -63,18 +71,22 @@ def _make_tool_call_response(
         content="",
         model="mock/model",
         tokens_used=tokens,
-        tool_calls=[{
-            "id": call_id,
-            "function": {"name": tool_name, "arguments": args_str},
-        }],
+        tool_calls=[
+            {
+                "id": call_id,
+                "function": {"name": tool_name, "arguments": args_str},
+            }
+        ],
         raw_message={
             "role": "assistant",
             "content": None,
-            "tool_calls": [{
-                "id": call_id,
-                "type": "function",
-                "function": {"name": tool_name, "arguments": args_str},
-            }],
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {"name": tool_name, "arguments": args_str},
+                }
+            ],
         },
     )
 
@@ -136,7 +148,8 @@ class TestTwoStagePipeline:
                         "    return a * b\n"
                     )
                     return _make_tool_call_response(
-                        "c2", "write_file",
+                        "c2",
+                        "write_file",
                         {"path": "src/calculator.py", "content": new_code},
                     )
                 elif len(tool_msgs) == 2:
@@ -158,14 +171,13 @@ class TestTwoStagePipeline:
                         "    assert multiply(0, 100) == 0\n"
                     )
                     return _make_tool_call_response(
-                        "c3", "write_file",
+                        "c3",
+                        "write_file",
                         {"path": "tests/test_calculator.py", "content": test_code},
                     )
                 else:
                     # Step 4: done
-                    return _make_llm_response(
-                        "Added multiply function and tests.", tokens=50
-                    )
+                    return _make_llm_response("Added multiply function and tests.", tokens=50)
 
         mock_provider.complete.side_effect = mock_complete
         mock_provider_cls.return_value = mock_provider
@@ -233,11 +245,13 @@ class TestSixStagePipeline:
                 )
             elif "code reviewer" in system_msg.lower():
                 return _make_llm_response(
-                    json.dumps({
-                        "score": 90,
-                        "reasoning": "Code looks good, tests are comprehensive",
-                        "issues": [],
-                    }),
+                    json.dumps(
+                        {
+                            "score": 90,
+                            "reasoning": "Code looks good, tests are comprehensive",
+                            "issues": [],
+                        }
+                    ),
                     tokens=150,
                 )
             elif "frontend" in system_msg.lower():
@@ -249,7 +263,8 @@ class TestSixStagePipeline:
                 # Tester: run tests
                 if len(tool_msgs) == 0:
                     return _make_tool_call_response(
-                        "ct1", "shell",
+                        "ct1",
+                        "shell",
                         {"command": "python -m pytest tests/ -v"},
                     )
                 else:
@@ -277,7 +292,8 @@ class TestSixStagePipeline:
                         "    return a * b\n"
                     )
                     return _make_tool_call_response(
-                        "cb2", "write_file",
+                        "cb2",
+                        "write_file",
                         {"path": "src/calculator.py", "content": new_code},
                     )
                 elif len(tool_msgs) == 2:
@@ -293,7 +309,8 @@ class TestSixStagePipeline:
                         "    assert multiply(0, 5) == 0\n"
                     )
                     return _make_tool_call_response(
-                        "cb3", "write_file",
+                        "cb3",
+                        "write_file",
                         {"path": "tests/test_calculator.py", "content": test_code},
                     )
                 else:

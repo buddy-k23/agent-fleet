@@ -1,8 +1,8 @@
 """Pydantic schemas for API endpoints."""
 
-from agent_fleet.api.schemas.tasks import TaskListResponse, TaskResponse, TaskSubmitRequest
-
 from pydantic import BaseModel
+
+from agent_fleet.api.schemas.tasks import TaskListResponse, TaskResponse, TaskSubmitRequest
 
 
 class HealthResponse(BaseModel):

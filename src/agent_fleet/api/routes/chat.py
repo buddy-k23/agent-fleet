@@ -28,11 +28,13 @@ async def chat_ws(websocket: WebSocket, conversation_id: str) -> None:
             # Save user message to Supabase
             client = get_supabase_client()
             if client:
-                client.table("messages").insert({
-                    "conversation_id": conversation_id,
-                    "role": "user",
-                    "content": user_content,
-                }).execute()
+                client.table("messages").insert(
+                    {
+                        "conversation_id": conversation_id,
+                        "role": "user",
+                        "content": user_content,
+                    }
+                ).execute()
 
             # Send thinking indicator
             await websocket.send_json({"type": "thinking"})
@@ -47,26 +49,32 @@ async def chat_ws(websocket: WebSocket, conversation_id: str) -> None:
             # Stream tokens (simulated)
             words = response.split(" ")
             for i, word in enumerate(words):
-                await websocket.send_json({
-                    "type": "token",
-                    "content": word + " ",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "token",
+                        "content": word + " ",
+                    }
+                )
 
             # Save assistant message
             if client:
-                client.table("messages").insert({
-                    "conversation_id": conversation_id,
-                    "role": "assistant",
-                    "content": response,
-                    "metadata": {"agent": agent_name, "tokens_used": 0},
-                }).execute()
+                client.table("messages").insert(
+                    {
+                        "conversation_id": conversation_id,
+                        "role": "assistant",
+                        "content": response,
+                        "metadata": {"agent": agent_name, "tokens_used": 0},
+                    }
+                ).execute()
 
             # Done
-            await websocket.send_json({
-                "type": "done",
-                "content": response,
-                "tokens_used": 0,
-            })
+            await websocket.send_json(
+                {
+                    "type": "done",
+                    "content": response,
+                    "tokens_used": 0,
+                }
+            )
 
     except WebSocketDisconnect:
         logger.info("chat_ws_disconnected", conversation_id=conversation_id)

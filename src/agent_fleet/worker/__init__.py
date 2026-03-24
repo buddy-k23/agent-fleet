@@ -1,10 +1,9 @@
 """Fleet Worker — polls Supabase for queued tasks and executes them."""
 
-import os
 import signal
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 
@@ -48,7 +47,11 @@ class FleetWorker:
     def start(self) -> None:
         """Start the poll loop. Blocks until shutdown."""
         self._running = True
-        logger.info("worker_starting", max_concurrent=self._max_concurrent, poll_interval=self._poll_interval)
+        logger.info(
+            "worker_starting",
+            max_concurrent=self._max_concurrent,
+            poll_interval=self._poll_interval,
+        )
 
         signal.signal(signal.SIGINT, self._handle_signal)
         signal.signal(signal.SIGTERM, self._handle_signal)
@@ -72,7 +75,7 @@ class FleetWorker:
 
         try:
             with open("/tmp/fleet-worker-heartbeat", "w") as f:
-                json.dump({"timestamp": datetime.now(timezone.utc).isoformat()}, f)
+                json.dump({"timestamp": datetime.now(UTC).isoformat()}, f)
         except OSError:
             pass
 
@@ -187,12 +190,8 @@ class FleetWorker:
         except Exception as e:
             logger.error("task_failed", task_id=task_id, error=str(e))
             try:
-                self._tasks_repo.update_status(
-                    task_id, "error", error_message=str(e)[:1000]
-                )
-                self._events_repo.append(
-                    task_id, "task_error", {"error": str(e)}
-                )
+                self._tasks_repo.update_status(task_id, "error", error_message=str(e)[:1000])
+                self._events_repo.append(task_id, "task_error", {"error": str(e)})
             except Exception as write_err:
                 logger.error("status_write_failed", task_id=task_id, error=str(write_err))
 
@@ -222,7 +221,7 @@ class FleetWorker:
     def _recover_stale_tasks(self, stale_threshold_minutes: int = 30) -> None:
         """On startup, re-queue tasks stuck in 'running' past timeout."""
         running_tasks = self._tasks_repo.list_by_status("running")
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for task in running_tasks:
             started_at = task.get("started_at")
@@ -236,5 +235,9 @@ class FleetWorker:
 
             age_minutes = (now - started_at).total_seconds() / 60
             if age_minutes > stale_threshold_minutes:
-                logger.warning("recovering_stale_task", task_id=task["id"], age_minutes=round(age_minutes))
+                logger.warning(
+                    "recovering_stale_task",
+                    task_id=task["id"],
+                    age_minutes=round(age_minutes),
+                )
                 self._tasks_repo.update_status(task["id"], "queued")

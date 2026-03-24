@@ -51,9 +51,7 @@ class FleetOrchestrator:
             self._workflow = load_workflow(workflow_path)
             self._registry = AgentRegistry(agents_dir)
         else:
-            raise ValueError(
-                "Provide either (workflow, registry) or (workflow_path, agents_dir)"
-            )
+            raise ValueError("Provide either (workflow, registry) or (workflow_path, agents_dir)")
         self._router = Router(self._workflow)
         self._repo_path = repo_path
         self._task_id = task_id
@@ -108,9 +106,7 @@ class FleetOrchestrator:
         # Single stage execution
         return self._execute_single_stage(state, stage_name)
 
-    def _execute_parallel(
-        self, state: FleetState, stages: list[str]
-    ) -> FleetState:
+    def _execute_parallel(self, state: FleetState, stages: list[str]) -> FleetState:
         """Execute multiple stages concurrently using threads."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -189,9 +185,7 @@ class FleetOrchestrator:
             "_worktree_paths": worktree_paths,
         }
 
-    def _execute_single_stage(
-        self, state: FleetState, stage_name: str
-    ) -> FleetState:
+    def _execute_single_stage(self, state: FleetState, stage_name: str) -> FleetState:
         """Execute a single stage (extracted from execute_stage for reuse)."""
         task_id = state["task_id"]
         stage_config = self._workflow.get_stage(stage_name)
@@ -212,9 +206,7 @@ class FleetOrchestrator:
         worktree_mgr = WorktreeManager(repo_path)
         task_branch = f"fleet/task-{task_id}"
 
-        expected_wt = (
-            repo_path / ".fleet-worktrees" / f"fleet-worktree-{task_id}-{stage_name}"
-        )
+        expected_wt = repo_path / ".fleet-worktrees" / f"fleet-worktree-{task_id}-{stage_name}"
         if expected_wt.exists():
             worktree_mgr.cleanup(expected_wt)
 
@@ -239,6 +231,7 @@ class FleetOrchestrator:
             review_output = stage_outputs["review"].get("output", "")
             try:
                 import json as json_mod
+
                 parsed = json_mod.loads(review_output)
                 reasoning = parsed.get("reasoning", review_output)
                 score = parsed.get("score", "?")
@@ -281,9 +274,7 @@ class FleetOrchestrator:
             "_worktree_path": str(worktree_path),
         }
 
-    def _execute_integrator(
-        self, state: FleetState, stage_name: str, task_id: str
-    ) -> FleetState:
+    def _execute_integrator(self, state: FleetState, stage_name: str, task_id: str) -> FleetState:
         """Run the integrator stage — generate summary + create PR, no LLM call."""
         from agent_fleet.workspace.pr import detect_provider, generate_pr_body
 
@@ -372,9 +363,7 @@ class FleetOrchestrator:
 
         return self._evaluate_single_gate(state, stage_name)
 
-    def _evaluate_single_gate(
-        self, state: FleetState, stage_name: str
-    ) -> FleetState:
+    def _evaluate_single_gate(self, state: FleetState, stage_name: str) -> FleetState:
         """Evaluate a single stage's gate."""
         import subprocess as sp
 
@@ -416,9 +405,7 @@ class FleetOrchestrator:
                     check_results[check] = True  # Unknown checks pass by default
             passed = all(check_results.values())
         elif gate.type == "score":
-            passed, route_to_stage = self._evaluate_score_gate(
-                state, stage_name, gate
-            )
+            passed, route_to_stage = self._evaluate_score_gate(state, stage_name, gate)
 
         # Handle result
         completed = list(state.get("completed_stages", []))
@@ -552,15 +539,23 @@ class FleetOrchestrator:
 
         graph.set_entry_point("route_next")
         # route_next may set status="completed" — skip execution if so
-        graph.add_conditional_edges("route_next", should_continue, {
-            "route_next": "execute_stage",  # continue → execute
-            "__end__": "__end__",           # terminal → stop
-        })
+        graph.add_conditional_edges(
+            "route_next",
+            should_continue,
+            {
+                "route_next": "execute_stage",  # continue → execute
+                "__end__": "__end__",  # terminal → stop
+            },
+        )
         graph.add_edge("execute_stage", "evaluate_gate")
-        graph.add_conditional_edges("evaluate_gate", should_continue, {
-            "route_next": "route_next",
-            "__end__": "__end__",
-        })
+        graph.add_conditional_edges(
+            "evaluate_gate",
+            should_continue,
+            {
+                "route_next": "route_next",
+                "__end__": "__end__",
+            },
+        )
 
         return graph.compile()
 

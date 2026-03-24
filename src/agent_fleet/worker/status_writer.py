@@ -29,18 +29,14 @@ class StatusWriter(FleetOrchestrator):
         task = self._repos["tasks"].get(task_id)
         if task and task.get("status") == "cancelled":
             logger.info("task_cancelled", task_id=task_id)
-            self._repos["events"].append(
-                task_id, "cancelled", {"reason": "User cancelled"}
-            )
+            self._repos["events"].append(task_id, "cancelled", {"reason": "User cancelled"})
             return {**state, "status": "interrupted"}
 
         result = super().route_next(state)
 
         # Write current stage to Supabase
         current_stage = result.get("current_stage")
-        self._repos["tasks"].update_status(
-            task_id, "running", current_stage=current_stage
-        )
+        self._repos["tasks"].update_status(task_id, "running", current_stage=current_stage)
         self._repos["events"].append(
             task_id,
             "route",

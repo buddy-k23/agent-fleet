@@ -32,9 +32,7 @@ class TestLocalSummaryProvider:
 class TestGitHubPRProvider:
     @patch("agent_fleet.workspace.pr.shutil.which")
     @patch("agent_fleet.workspace.pr.subprocess.run")
-    def test_creates_pr_via_gh(
-        self, mock_run: MagicMock, mock_which: MagicMock
-    ) -> None:
+    def test_creates_pr_via_gh(self, mock_run: MagicMock, mock_which: MagicMock) -> None:
         mock_which.return_value = "/usr/local/bin/gh"
         mock_run.return_value = MagicMock(
             returncode=0, stdout="https://github.com/org/repo/pull/42\n"

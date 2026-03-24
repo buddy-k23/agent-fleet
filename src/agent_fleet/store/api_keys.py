@@ -42,21 +42,25 @@ def mask_key(api_key: str) -> str:
     return api_key[:6] + "***..." + api_key[-4:]
 
 
-def store_api_key(
-    user_id: str, provider: str, api_key: str, label: str = ""
-) -> dict | None:
+def store_api_key(user_id: str, provider: str, api_key: str, label: str = "") -> dict | None:
     """Store an encrypted API key."""
     client = get_supabase_client()
     if not client:
         return None
 
     encrypted = encrypt_key(api_key)
-    result = client.table("api_keys").insert({
-        "user_id": user_id,
-        "provider": provider,
-        "encrypted_key": encrypted,
-        "label": label,
-    }).execute()
+    result = (
+        client.table("api_keys")
+        .insert(
+            {
+                "user_id": user_id,
+                "provider": provider,
+                "encrypted_key": encrypted,
+                "label": label,
+            }
+        )
+        .execute()
+    )
 
     logger.info("api_key_stored", provider=provider, user_id=user_id)
     return result.data[0] if result.data else None
@@ -84,14 +88,16 @@ def list_api_keys(user_id: str) -> list[dict]:
         except Exception:
             masked = "***invalid***"
 
-        keys.append({
-            "id": row["id"],
-            "provider": row["provider"],
-            "label": row["label"],
-            "is_active": row["is_active"],
-            "masked_key": masked,
-            "created_at": row["created_at"],
-        })
+        keys.append(
+            {
+                "id": row["id"],
+                "provider": row["provider"],
+                "label": row["label"],
+                "is_active": row["is_active"],
+                "masked_key": masked,
+                "created_at": row["created_at"],
+            }
+        )
     return keys
 
 

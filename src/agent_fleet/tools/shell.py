@@ -44,9 +44,7 @@ class ShellTool(BaseTool):
                 "returncode": result.returncode,
             }
         except subprocess.TimeoutExpired:
-            logger.warning(
-                "shell_timeout", command=command, timeout=self._timeout
-            )
+            logger.warning("shell_timeout", command=command, timeout=self._timeout)
             return {
                 "error": f"Command timed out after {self._timeout}s",
                 "returncode": -1,

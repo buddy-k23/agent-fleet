@@ -14,17 +14,23 @@ def git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     (tmp_path / "README.md").write_text("# Test")
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     return tmp_path
 
@@ -46,7 +52,9 @@ class TestWorktreeCreate:
         wt_path = mgr.create(task_id="task-003", stage="frontend")
         result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=wt_path, capture_output=True, text=True,
+            cwd=wt_path,
+            capture_output=True,
+            text=True,
         )
         assert "fleet/task-003-frontend" in result.stdout.strip()
 
@@ -111,17 +119,23 @@ class TestWorktreeBaseBranch:
         # Create a task branch with a commit
         subprocess.run(
             ["git", "checkout", "-b", "fleet/task-011"],
-            cwd=git_repo, capture_output=True, check=True,
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
         )
         (git_repo / "task-file.txt").write_text("task work")
         subprocess.run(["git", "add", "."], cwd=git_repo, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "task branch commit"],
-            cwd=git_repo, capture_output=True, check=True,
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "checkout", "-"],
-            cwd=git_repo, capture_output=True, check=True,
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
         )
 
         mgr = WorktreeManager(git_repo)
