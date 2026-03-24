@@ -82,24 +82,28 @@ class TestExecuteStage:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
     @patch("agent_fleet.core.orchestrator.AgentRunner")
-    def test_execute_stage_runs_agent(
-        self, mock_runner_cls: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_execute_stage_runs_agent(self, mock_runner_cls: MagicMock, tmp_path: Path) -> None:
         repo = self._make_git_repo(tmp_path)
         mock_runner = MagicMock()
         mock_runner.run.return_value = AgentResult(
@@ -275,17 +279,23 @@ class TestIntegratorShortcut:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
@@ -356,17 +366,23 @@ class TestEvaluateGate:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
@@ -401,18 +417,24 @@ class TestEvaluateGate:
         subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         # Write a passing test
         (worktree / "test_pass.py").write_text("def test_ok():\n    assert True\n")
         subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "test"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
 
         orch = FleetOrchestrator(
@@ -443,18 +465,24 @@ class TestEvaluateGate:
         subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         # Write a failing test
         (worktree / "test_fail.py").write_text("def test_bad():\n    assert False\n")
         subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "test"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
 
         orch = FleetOrchestrator(
@@ -488,17 +516,23 @@ class TestEvaluateGate:
         subprocess.run(["git", "init"], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
         (worktree / "test_fail.py").write_text("def test_bad():\n    assert False\n")
         subprocess.run(["git", "add", "."], cwd=worktree, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "test"],
-            cwd=worktree, capture_output=True, check=True,
+            cwd=worktree,
+            capture_output=True,
+            check=True,
         )
 
         orch = FleetOrchestrator(
@@ -533,11 +567,13 @@ class TestScoreGate:
         import json
 
         orch = self._make_orchestrator()
-        review_output = json.dumps({
-            "score": 90,
-            "reasoning": "Code looks great",
-            "issues": [],
-        })
+        review_output = json.dumps(
+            {
+                "score": 90,
+                "reasoning": "Code looks great",
+                "issues": [],
+            }
+        )
         state: FleetState = {
             "task_id": "t-score-a",
             "repo": "/r",
@@ -556,12 +592,14 @@ class TestScoreGate:
         import json
 
         orch = self._make_orchestrator()
-        review_output = json.dumps({
-            "score": 60,
-            "reasoning": "Missing tests",
-            "issues": [{"description": "No edge cases"}],
-            "route_to": "backend",
-        })
+        review_output = json.dumps(
+            {
+                "score": 60,
+                "reasoning": "Missing tests",
+                "issues": [{"description": "No edge cases"}],
+                "route_to": "backend",
+            }
+        )
         state: FleetState = {
             "task_id": "t-score-b",
             "repo": "/r",
@@ -584,11 +622,13 @@ class TestScoreGate:
 
         orch = self._make_orchestrator()
         # No route_to in reviewer JSON
-        review_output = json.dumps({
-            "score": 50,
-            "reasoning": "Poor quality",
-            "issues": [],
-        })
+        review_output = json.dumps(
+            {
+                "score": 50,
+                "reasoning": "Poor quality",
+                "issues": [],
+            }
+        )
         state: FleetState = {
             "task_id": "t-score-c",
             "repo": "/r",
@@ -609,11 +649,13 @@ class TestScoreGate:
         import json
 
         orch = self._make_orchestrator()
-        review_output = json.dumps({
-            "score": 40,
-            "reasoning": "Frontend issues",
-            "route_to": "frontend",
-        })
+        review_output = json.dumps(
+            {
+                "score": 40,
+                "reasoning": "Frontend issues",
+                "route_to": "frontend",
+            }
+        )
         state: FleetState = {
             "task_id": "t-score-e",
             "repo": "/r",

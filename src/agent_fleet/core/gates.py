@@ -48,13 +48,9 @@ def evaluate_gate(
         )
 
 
-def _evaluate_automated(
-    gate: GateConfig, check_results: dict[str, bool]
-) -> GateResult:
+def _evaluate_automated(gate: GateConfig, check_results: dict[str, bool]) -> GateResult:
     """Evaluate automated gate — all checks must pass."""
-    failed_checks = [
-        name for name in gate.checks if not check_results.get(name, False)
-    ]
+    failed_checks = [name for name in gate.checks if not check_results.get(name, False)]
     if failed_checks:
         logger.info("gate_automated_failed", failed=failed_checks)
         return GateResult(
@@ -69,9 +65,7 @@ def _evaluate_automated(
 def _evaluate_score(gate: GateConfig, score: int | None) -> GateResult:
     """Evaluate score gate — score must meet min_score threshold."""
     if score is None:
-        return GateResult(
-            passed=False, gate_type="score", reason="No score provided"
-        )
+        return GateResult(passed=False, gate_type="score", reason="No score provided")
     min_score = gate.min_score or 0
     if score >= min_score:
         return GateResult(

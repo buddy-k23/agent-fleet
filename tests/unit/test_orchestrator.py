@@ -1,5 +1,7 @@
 """Tests for LangGraph orchestrator graph."""
 
+import pytest
+
 from agent_fleet.core.events import log_event
 from agent_fleet.core.orchestrator import build_orchestrator_graph, should_continue
 from agent_fleet.core.state import FleetState
@@ -60,6 +62,52 @@ def test_should_continue_returns_end_when_cost_limit() -> None:
         "status": "cost_limit",
     }
     assert should_continue(state) == "__end__"
+
+
+def test_orchestrator_accepts_in_memory_config() -> None:
+    """FleetOrchestrator can be constructed with in-memory workflow + registry."""
+    from agent_fleet.agents.registry import AgentRegistry
+    from agent_fleet.core.orchestrator import FleetOrchestrator
+    from agent_fleet.core.workflow import GateConfig, StageConfig, WorkflowConfig
+
+    workflow = WorkflowConfig(
+        name="test-workflow",
+        stages=[
+            StageConfig(
+                name="plan",
+                agent="Architect",
+                gate=GateConfig(type="approval"),
+            )
+        ],
+    )
+    registry = AgentRegistry.from_configs(
+        [
+            {
+                "name": "Architect",
+                "description": "Plans",
+                "capabilities": ["code_analysis"],
+                "tools": ["code"],
+                "default_model": "anthropic/claude-opus-4-6",
+                "system_prompt": "You are an architect.",
+            }
+        ]
+    )
+
+    orch = FleetOrchestrator(
+        task_id="test-task-1",
+        workflow=workflow,
+        registry=registry,
+    )
+    assert orch.workflow.name == "test-workflow"
+    assert orch._registry.has("Architect")
+
+
+def test_orchestrator_rejects_incomplete_args() -> None:
+    """FleetOrchestrator raises ValueError if neither config mode is complete."""
+    from agent_fleet.core.orchestrator import FleetOrchestrator
+
+    with pytest.raises(ValueError, match="Provide either"):
+        FleetOrchestrator(task_id="test-task-1")
 
 
 class TestEventLog:

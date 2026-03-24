@@ -31,9 +31,20 @@ SKIP_DIRS = {"node_modules", ".git", ".venv", "venv", "__pycache__", "dist", "bu
 
 # File extensions to scan
 SCAN_EXTENSIONS = {
-    ".py", ".java", ".ts", ".tsx", ".js", ".jsx",
-    ".yml", ".yaml", ".xml", ".json", ".env",
-    ".properties", ".cfg", ".conf",
+    ".py",
+    ".java",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".yml",
+    ".yaml",
+    ".xml",
+    ".json",
+    ".env",
+    ".properties",
+    ".cfg",
+    ".conf",
 }
 
 
@@ -58,13 +69,15 @@ def scan_for_pii(root: Path) -> list[dict[str, Any]]:
                 for pii_type, pattern in PII_PATTERNS.items():
                     if pattern.search(line):
                         severity = _get_severity(pii_type)
-                        findings.append({
-                            "file": rel_path,
-                            "line": line_num,
-                            "type": pii_type,
-                            "severity": severity,
-                            "match": line.strip()[:100],
-                        })
+                        findings.append(
+                            {
+                                "file": rel_path,
+                                "line": line_num,
+                                "type": pii_type,
+                                "severity": severity,
+                                "match": line.strip()[:100],
+                            }
+                        )
         except OSError:
             continue
 

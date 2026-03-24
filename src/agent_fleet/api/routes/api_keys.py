@@ -6,7 +6,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from agent_fleet.api.auth import get_current_user
+from agent_fleet.api.deps import get_current_user
 from agent_fleet.store.api_keys import (
     delete_api_key,
     get_api_key,

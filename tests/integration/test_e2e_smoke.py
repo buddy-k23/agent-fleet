@@ -116,11 +116,14 @@ class TestAPILifecycle:
             assert resp.json()["status"] == "ok"
 
             # Submit
-            resp = client.post("/api/v1/tasks", json={
-                "repo": "/test/repo",
-                "description": "Integration test task",
-                "workflow": "default",
-            })
+            resp = client.post(
+                "/api/v1/tasks",
+                json={
+                    "repo": "/test/repo",
+                    "description": "Integration test task",
+                    "workflow": "default",
+                },
+            )
             assert resp.status_code == 201
             task_id = resp.json()["task_id"]
 
@@ -147,17 +150,23 @@ class TestWorktreeIntegration:
         subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "user.email", "t@t.com"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "T"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("# Test")
         subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "init"],
-            cwd=tmp_path, capture_output=True, check=True,
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
@@ -174,7 +183,9 @@ class TestWorktreeIntegration:
         wt = mgr.create(task_id="smoke-002", stage="backend")
         result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=wt, capture_output=True, text=True,
+            cwd=wt,
+            capture_output=True,
+            text=True,
         )
         assert "fleet/smoke-002-backend" in result.stdout
         mgr.cleanup(wt)

@@ -27,3 +27,28 @@ services:
       - "3001:3001"
     depends_on:
       - backend
+
+  worker:
+    build: .
+    command: python -m agent_fleet.worker
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      MAX_CONCURRENT_TASKS: ${MAX_CONCURRENT_TASKS:-3}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-3}
+    volumes:
+      - ./config:/app/config
+      - worker-worktrees:/tmp/fleet-worktrees
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-m", "agent_fleet.worker", "--health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  worker-worktrees:

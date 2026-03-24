@@ -5,8 +5,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 
-from agent_fleet.api.auth import get_current_user
-from agent_fleet.store.supabase_client import get_supabase_client
+from agent_fleet.api.deps import get_current_user, get_supabase_client
 from agent_fleet.store.supabase_repo import SupabaseWorkflowRepository
 
 logger = structlog.get_logger()

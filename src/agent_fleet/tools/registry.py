@@ -20,11 +20,13 @@ def create_tools(tool_names: list[str], worktree_path: Path) -> list[BaseTool]:
     tools: list[BaseTool] = []
     for name in tool_names:
         if name == "code":
-            tools.extend([
-                ReadFileTool(workspace_root=worktree_path),
-                WriteFileTool(workspace_root=worktree_path),
-                ListFilesTool(workspace_root=worktree_path),
-            ])
+            tools.extend(
+                [
+                    ReadFileTool(workspace_root=worktree_path),
+                    WriteFileTool(workspace_root=worktree_path),
+                    ListFilesTool(workspace_root=worktree_path),
+                ]
+            )
         elif name == "shell":
             tools.append(ShellTool(workspace_root=worktree_path))
         else:

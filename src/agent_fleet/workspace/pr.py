@@ -14,9 +14,7 @@ class PRProvider(ABC):
     """Abstract base for PR/MR creation."""
 
     @abstractmethod
-    def create_pr(
-        self, repo_path: Path, branch: str, title: str, body: str
-    ) -> str | None:
+    def create_pr(self, repo_path: Path, branch: str, title: str, body: str) -> str | None:
         """Create a PR/MR. Returns URL on success, None on failure."""
         ...
 
@@ -24,9 +22,7 @@ class PRProvider(ABC):
 class GitHubPRProvider(PRProvider):
     """Creates PRs via the `gh` CLI."""
 
-    def create_pr(
-        self, repo_path: Path, branch: str, title: str, body: str
-    ) -> str | None:
+    def create_pr(self, repo_path: Path, branch: str, title: str, body: str) -> str | None:
         result = subprocess.run(
             ["gh", "pr", "create", "--title", title, "--body", body, "--head", branch],
             cwd=str(repo_path),
@@ -44,15 +40,18 @@ class GitHubPRProvider(PRProvider):
 class GitLabPRProvider(PRProvider):
     """Creates MRs via the `glab` CLI."""
 
-    def create_pr(
-        self, repo_path: Path, branch: str, title: str, body: str
-    ) -> str | None:
+    def create_pr(self, repo_path: Path, branch: str, title: str, body: str) -> str | None:
         result = subprocess.run(
             [
-                "glab", "mr", "create",
-                "--title", title,
-                "--description", body,
-                "--source-branch", branch,
+                "glab",
+                "mr",
+                "create",
+                "--title",
+                title,
+                "--description",
+                body,
+                "--source-branch",
+                branch,
             ],
             cwd=str(repo_path),
             capture_output=True,
@@ -69,9 +68,7 @@ class GitLabPRProvider(PRProvider):
 class LocalSummaryProvider(PRProvider):
     """Writes a summary file instead of creating a PR. Always succeeds."""
 
-    def create_pr(
-        self, repo_path: Path, branch: str, title: str, body: str
-    ) -> str | None:
+    def create_pr(self, repo_path: Path, branch: str, title: str, body: str) -> str | None:
         summary_path = repo_path / "fleet-summary.md"
         content = f"# {title}\n\n**Branch:** {branch}\n\n{body}\n"
         summary_path.write_text(content)

@@ -89,38 +89,39 @@ class AgentRunner:
                 try:
                     func_args = json.loads(func_args_str)
                 except json.JSONDecodeError:
-                    tool_result = (
-                        "Invalid JSON arguments. Please retry with valid JSON."
+                    tool_result = "Invalid JSON arguments. Please retry with valid JSON."
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call_id,
+                            "content": tool_result,
+                        }
                     )
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call_id,
-                        "content": tool_result,
-                    })
                     continue
 
                 # Look up and execute tool
                 tool = self._tools.get(func_name)
                 if tool is None:
                     available = ", ".join(sorted(self._tools.keys()))
-                    tool_result = (
-                        f"Tool '{func_name}' not found. "
-                        f"Available tools: {available}"
-                    )
+                    tool_result = f"Tool '{func_name}' not found. Available tools: {available}"
                 else:
                     result = tool.execute(func_args)
                     tool_result = json.dumps(result)
-                    all_tool_calls.append({
-                        "tool": func_name,
-                        "args": func_args,
-                        "result": result,
-                    })
+                    all_tool_calls.append(
+                        {
+                            "tool": func_name,
+                            "args": func_args,
+                            "result": result,
+                        }
+                    )
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": tool_result,
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": tool_result,
+                    }
+                )
 
         # Max iterations reached
         logger.warning(

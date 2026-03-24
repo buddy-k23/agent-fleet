@@ -35,9 +35,7 @@ def test_review_after_both_parallel() -> None:
 def test_all_done_returns_empty() -> None:
     wf = load_workflow(FIXTURES_DIR / "test-workflow.yaml")
     router = Router(wf)
-    next_stages = router.get_next_stages(
-        completed={"plan", "backend", "frontend", "review"}
-    )
+    next_stages = router.get_next_stages(completed={"plan", "backend", "frontend", "review"})
     assert len(next_stages) == 0
 
 

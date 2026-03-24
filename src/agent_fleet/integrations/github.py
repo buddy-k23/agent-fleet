@@ -1,4 +1,5 @@
 """GitHub integration — convert issues to fleet tasks."""
+
 from typing import Any
 
 import structlog

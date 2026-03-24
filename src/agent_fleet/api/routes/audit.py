@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from agent_fleet.api.auth import get_current_user
+from agent_fleet.api.deps import get_current_user
 from agent_fleet.store.audit import get_audit_log
 
 router = APIRouter(prefix="/api/v1/audit", tags=["audit"])

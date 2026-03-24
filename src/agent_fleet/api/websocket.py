@@ -1,4 +1,5 @@
 """WebSocket endpoint for real-time task status streaming."""
+
 import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 

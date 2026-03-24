@@ -6,9 +6,8 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from agent_fleet.api.auth import get_current_user
+from agent_fleet.api.deps import get_current_user, get_supabase_client
 from agent_fleet.store.audit import log_audit_event
-from agent_fleet.store.supabase_client import get_supabase_client
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/tasks", tags=["approvals"])
@@ -43,14 +42,16 @@ def approve_task(
         raise HTTPException(status_code=400, detail="Task is not awaiting approval")
 
     # Record approval
-    client.table("approvals").insert({
-        "task_id": task_id,
-        "stage": task_data.get("current_stage", ""),
-        "approver_id": user["id"],
-        "approver_email": user["email"],
-        "decision": req.decision,
-        "reason": req.reason,
-    }).execute()
+    client.table("approvals").insert(
+        {
+            "task_id": task_id,
+            "stage": task_data.get("current_stage", ""),
+            "approver_id": user["id"],
+            "approver_email": user["email"],
+            "decision": req.decision,
+            "reason": req.reason,
+        }
+    ).execute()
 
     # Log to audit trail
     log_audit_event(
@@ -72,10 +73,12 @@ def approve_task(
         logger.info("task_approved", task_id=task_id, approver=user["email"])
         return {"status": "approved", "task_id": task_id}
     else:
-        client.table("tasks").update({
-            "status": "rejected",
-            "error_message": f"Rejected by {user['email']}: {req.reason}",
-        }).eq("id", task_id).execute()
+        client.table("tasks").update(
+            {
+                "status": "rejected",
+                "error_message": f"Rejected by {user['email']}: {req.reason}",
+            }
+        ).eq("id", task_id).execute()
         logger.info("task_rejected", task_id=task_id, approver=user["email"])
         return {"status": "rejected", "task_id": task_id, "reason": req.reason}
 
@@ -91,10 +94,6 @@ def list_approvals(
         return []
 
     result = (
-        client.table("approvals")
-        .select("*")
-        .eq("task_id", task_id)
-        .order("created_at")
-        .execute()
+        client.table("approvals").select("*").eq("task_id", task_id).order("created_at").execute()
     )
     return result.data

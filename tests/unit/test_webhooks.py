@@ -1,4 +1,5 @@
 """Tests for webhook handlers and GitHub integration."""
+
 from fastapi.testclient import TestClient
 
 from agent_fleet.integrations.github import issue_to_task
@@ -7,9 +8,10 @@ from agent_fleet.main import create_app
 
 class TestGitHubWebhook:
     def test_accepts_issue_opened_event(self) -> None:
-        app = create_app(database_url="sqlite:///:memory:")
+        app = create_app()
         # Wire webhook router
         from agent_fleet.api.routes import webhooks
+
         app.include_router(webhooks.router)
 
         with TestClient(app) as client:
@@ -34,8 +36,9 @@ class TestGitHubWebhook:
             assert resp.json()["status"] == "accepted"
 
     def test_ignores_non_issue_events(self) -> None:
-        app = create_app(database_url="sqlite:///:memory:")
+        app = create_app()
         from agent_fleet.api.routes import webhooks
+
         app.include_router(webhooks.router)
 
         with TestClient(app) as client:

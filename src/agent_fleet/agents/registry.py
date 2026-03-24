@@ -18,6 +18,16 @@ class AgentRegistry:
         self._agents: dict[str, AgentConfig] = {}
         self._load(config_dir)
 
+    @classmethod
+    def from_configs(cls, configs: list[dict]) -> "AgentRegistry":
+        """Build registry from a list of config dicts (e.g. Supabase rows)."""
+        instance = cls.__new__(cls)
+        instance._agents = {}
+        for config in configs:
+            agent = AgentConfig(**config)
+            instance._agents[agent.name] = agent
+        return instance
+
     def _load(self, config_dir: Path) -> None:
         if not config_dir.is_dir():
             logger.warning("agent_config_dir_not_found", path=str(config_dir))

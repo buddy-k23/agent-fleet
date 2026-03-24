@@ -31,17 +31,19 @@ def git_worktree(tmp_path: Path) -> Path:
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "T"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     (tmp_path / "existing.txt").write_text("hello")
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", "init"], cwd=tmp_path, capture_output=True, check=True
-    )
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, capture_output=True, check=True)
     return tmp_path
 
 
@@ -66,9 +68,7 @@ class TestAgentRunnerBasicFlow:
         assert result.tokens_used == 50
         assert result.iterations == 1
 
-    def test_tool_call_then_answer(
-        self, agent_config: AgentConfig, git_worktree: Path
-    ) -> None:
+    def test_tool_call_then_answer(self, agent_config: AgentConfig, git_worktree: Path) -> None:
         """LLM makes one tool call, then responds with text."""
         provider = MagicMock(spec=LLMProvider)
 
@@ -78,24 +78,28 @@ class TestAgentRunnerBasicFlow:
                 content="",
                 model="test/model",
                 tokens_used=30,
-                tool_calls=[{
-                    "id": "call_1",
-                    "function": {
-                        "name": "read_file",
-                        "arguments": json.dumps({"path": "existing.txt"}),
-                    },
-                }],
-                raw_message={
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
+                tool_calls=[
+                    {
                         "id": "call_1",
-                        "type": "function",
                         "function": {
                             "name": "read_file",
                             "arguments": json.dumps({"path": "existing.txt"}),
                         },
-                    }],
+                    }
+                ],
+                raw_message={
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "read_file",
+                                "arguments": json.dumps({"path": "existing.txt"}),
+                            },
+                        }
+                    ],
                 },
             ),
             # Second call: final answer
@@ -128,30 +132,38 @@ class TestAgentRunnerBasicFlow:
                 content="",
                 model="m",
                 tokens_used=20,
-                tool_calls=[{
-                    "id": "call_1",
-                    "function": {
-                        "name": "write_file",
-                        "arguments": json.dumps({
-                            "path": "new_file.txt",
-                            "content": "new content",
-                        }),
-                    },
-                }],
+                tool_calls=[
+                    {
+                        "id": "call_1",
+                        "function": {
+                            "name": "write_file",
+                            "arguments": json.dumps(
+                                {
+                                    "path": "new_file.txt",
+                                    "content": "new content",
+                                }
+                            ),
+                        },
+                    }
+                ],
                 raw_message={
                     "role": "assistant",
                     "content": None,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "type": "function",
-                        "function": {
-                            "name": "write_file",
-                            "arguments": json.dumps({
-                                "path": "new_file.txt",
-                                "content": "new content",
-                            }),
-                        },
-                    }],
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": json.dumps(
+                                    {
+                                        "path": "new_file.txt",
+                                        "content": "new content",
+                                    }
+                                ),
+                            },
+                        }
+                    ],
                 },
             ),
             LLMResponse(
@@ -182,24 +194,28 @@ class TestAgentRunnerEdgeCases:
             content="",
             model="m",
             tokens_used=10,
-            tool_calls=[{
-                "id": "call_loop",
-                "function": {
-                    "name": "read_file",
-                    "arguments": json.dumps({"path": "existing.txt"}),
-                },
-            }],
-            raw_message={
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [{
+            tool_calls=[
+                {
                     "id": "call_loop",
-                    "type": "function",
                     "function": {
                         "name": "read_file",
                         "arguments": json.dumps({"path": "existing.txt"}),
                     },
-                }],
+                }
+            ],
+            raw_message={
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "call_loop",
+                        "type": "function",
+                        "function": {
+                            "name": "read_file",
+                            "arguments": json.dumps({"path": "existing.txt"}),
+                        },
+                    }
+                ],
             },
         )
 
@@ -220,24 +236,28 @@ class TestAgentRunnerEdgeCases:
                 content="",
                 model="m",
                 tokens_used=10,
-                tool_calls=[{
-                    "id": "call_bad",
-                    "function": {
-                        "name": "nonexistent_tool",
-                        "arguments": "{}",
-                    },
-                }],
-                raw_message={
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
+                tool_calls=[
+                    {
                         "id": "call_bad",
-                        "type": "function",
                         "function": {
                             "name": "nonexistent_tool",
                             "arguments": "{}",
                         },
-                    }],
+                    }
+                ],
+                raw_message={
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_bad",
+                            "type": "function",
+                            "function": {
+                                "name": "nonexistent_tool",
+                                "arguments": "{}",
+                            },
+                        }
+                    ],
                 },
             ),
             LLMResponse(
@@ -258,9 +278,7 @@ class TestAgentRunnerEdgeCases:
         calls = provider.complete.call_args_list
         assert len(calls) == 2
 
-    def test_invalid_json_arguments(
-        self, agent_config: AgentConfig, git_worktree: Path
-    ) -> None:
+    def test_invalid_json_arguments(self, agent_config: AgentConfig, git_worktree: Path) -> None:
         """Malformed JSON in tool arguments sends error back to LLM."""
         provider = MagicMock(spec=LLMProvider)
         provider.complete.side_effect = [
@@ -268,24 +286,28 @@ class TestAgentRunnerEdgeCases:
                 content="",
                 model="m",
                 tokens_used=10,
-                tool_calls=[{
-                    "id": "call_badjson",
-                    "function": {
-                        "name": "read_file",
-                        "arguments": "not valid json{{{",
-                    },
-                }],
-                raw_message={
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
+                tool_calls=[
+                    {
                         "id": "call_badjson",
-                        "type": "function",
                         "function": {
                             "name": "read_file",
                             "arguments": "not valid json{{{",
                         },
-                    }],
+                    }
+                ],
+                raw_message={
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_badjson",
+                            "type": "function",
+                            "function": {
+                                "name": "read_file",
+                                "arguments": "not valid json{{{",
+                            },
+                        }
+                    ],
                 },
             ),
             LLMResponse(

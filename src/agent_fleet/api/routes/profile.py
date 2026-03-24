@@ -4,8 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
-from agent_fleet.api.auth import get_current_user
-from agent_fleet.store.supabase_client import get_supabase_client
+from agent_fleet.api.deps import get_current_user, get_supabase_client
 
 router = APIRouter(prefix="/api/v1/profile", tags=["profile"])
 
@@ -34,10 +33,5 @@ def update_profile(
     allowed = {"display_name", "default_workflow", "preferences"}
     filtered = {k: v for k, v in profile_data.items() if k in allowed}
 
-    result = (
-        client.table("profiles")
-        .update(filtered)
-        .eq("id", user["id"])
-        .execute()
-    )
+    result = client.table("profiles").update(filtered).eq("id", user["id"]).execute()
     return result.data[0] if result.data else {}
