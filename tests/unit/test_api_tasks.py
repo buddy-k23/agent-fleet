@@ -30,6 +30,30 @@ def client(mock_repo: MagicMock) -> TestClient:
 
 
 class TestSubmitTask:
+    def test_submit_missing_repo_returns_422(self, client: TestClient) -> None:
+        """POST /api/v1/tasks without repo field returns 422."""
+        response = client.post(
+            "/api/v1/tasks",
+            json={"description": "Fix bug", "workflow_id": "wf-1"},
+        )
+        assert response.status_code == 422
+
+    def test_submit_missing_description_returns_422(self, client: TestClient) -> None:
+        """POST /api/v1/tasks without description field returns 422."""
+        response = client.post(
+            "/api/v1/tasks",
+            json={"repo": "/tmp/repo", "workflow_id": "wf-1"},
+        )
+        assert response.status_code == 422
+
+    def test_submit_missing_workflow_id_returns_422(self, client: TestClient) -> None:
+        """POST /api/v1/tasks without workflow_id field returns 422."""
+        response = client.post(
+            "/api/v1/tasks",
+            json={"repo": "/tmp/repo", "description": "Fix bug"},
+        )
+        assert response.status_code == 422
+
     def test_submit_creates_task(self, client: TestClient, mock_repo: MagicMock) -> None:
         """POST /api/v1/tasks creates a queued task."""
         mock_repo.create.return_value = {
@@ -60,6 +84,14 @@ class TestSubmitTask:
 
 
 class TestListTasks:
+    def test_list_empty_returns_empty_list(self, client: TestClient, mock_repo: MagicMock) -> None:
+        """GET /api/v1/tasks returns empty list when no tasks exist."""
+        mock_repo.list_by_user.return_value = []
+
+        response = client.get("/api/v1/tasks")
+        assert response.status_code == 200
+        assert response.json() == {"tasks": []}
+
     def test_list_returns_user_tasks(self, client: TestClient, mock_repo: MagicMock) -> None:
         """GET /api/v1/tasks returns user's tasks."""
         mock_repo.list_by_user.return_value = [
@@ -151,3 +183,25 @@ class TestCancelTask:
 
         response = client.delete("/api/v1/tasks/task-1/cancel")
         assert response.status_code == 400
+
+    def test_cancel_already_cancelled_returns_400(self, client: TestClient, mock_repo: MagicMock) -> None:
+        """DELETE /api/v1/tasks/{id}/cancel returns 400 if task is already cancelled."""
+        mock_repo.get.return_value = {
+            "id": "task-1",
+            "user_id": "user-123",
+            "status": "cancelled",
+        }
+
+        response = client.delete("/api/v1/tasks/task-1/cancel")
+        assert response.status_code == 400
+
+    def test_cancel_wrong_user_returns_404(self, client: TestClient, mock_repo: MagicMock) -> None:
+        """DELETE /api/v1/tasks/{id}/cancel returns 404 if task belongs to different user."""
+        mock_repo.get.return_value = {
+            "id": "task-1",
+            "user_id": "other-user-456",
+            "status": "running",
+        }
+
+        response = client.delete("/api/v1/tasks/task-1/cancel")
+        assert response.status_code == 404

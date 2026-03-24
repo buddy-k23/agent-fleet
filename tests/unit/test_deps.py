@@ -114,3 +114,30 @@ async def test_get_current_user_rejects_invalid_token():
         with pytest.raises(HTTPException) as exc_info:
             await get_current_user(mock_request)
         assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_empty_bearer():
+    """Authorization header 'Bearer ' with empty token returns 401."""
+    mock_request = MagicMock()
+    mock_request.headers.get.return_value = "Bearer "
+
+    with patch("agent_fleet.api.deps.get_supabase_client") as mock_get_client:
+        mock_client = MagicMock()
+        mock_client.auth.get_user.side_effect = Exception("Empty token")
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(mock_request)
+        assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_non_bearer_scheme():
+    """Authorization header using non-Bearer scheme returns 401."""
+    mock_request = MagicMock()
+    mock_request.headers.get.return_value = "Basic abc123"
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user(mock_request)
+    assert exc_info.value.status_code == 401
