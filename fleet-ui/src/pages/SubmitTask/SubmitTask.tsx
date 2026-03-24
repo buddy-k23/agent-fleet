@@ -37,20 +37,32 @@ export default function SubmitTask() {
     setLoading(true);
     setError('');
 
-    const { data, error: err } = await supabase.from('tasks').insert({
-      user_id: user.id,
-      repo,
-      description,
-      workflow_id: workflowId || null,
-      workflow_name: workflows.find((w) => w.id === workflowId)?.name || 'default',
-      status: 'queued',
-    }).select().single();
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          repo,
+          description,
+          workflow_id: workflowId,
+        }),
+      });
 
-    setLoading(false);
-    if (err) {
-      setError(err.message);
-    } else if (data) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to submit task');
+      }
+
+      const data = await response.json();
       navigate(`/tasks/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit task');
+    } finally {
+      setLoading(false);
     }
   };
 
