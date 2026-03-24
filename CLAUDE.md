@@ -6,8 +6,8 @@ Multi-model AI agent orchestration platform. Submits coding tasks, coordinates
 specialized agents (Architect, Backend Dev, Frontend Dev, Reviewer, Tester),
 evaluates quality gates, and produces PRs. Built on LangGraph + LiteLLM + FastAPI.
 
-**Stack:** Python 3.12+, LangGraph, LiteLLM, FastAPI, Typer, SQLAlchemy + Alembic
-**Directory:** `src/agent_fleet/` (core), `cli/` (CLI client), `fleet-ui/` (React UI, future)
+**Stack:** Python 3.12+, LangGraph, LiteLLM, FastAPI, Typer, Supabase (supabase-py)
+**Directory:** `src/agent_fleet/` (core), `cli/` (CLI client), `fleet-ui/` (React UI)
 
 ---
 
@@ -50,6 +50,9 @@ source .venv/bin/activate
 # Run API server
 uvicorn agent_fleet.main:app --reload --port 8000
 
+# Run worker (separate process — polls Supabase for queued tasks)
+python -m agent_fleet.worker
+
 # Run CLI
 fleet --help
 fleet run --repo /path/to/repo --task "Implement feature X"
@@ -67,6 +70,9 @@ ruff format src/ cli/ tests/
 
 # Type checking
 mypy src/agent_fleet/
+
+# Docker (API + Worker + UI)
+docker compose up
 ```
 
 ---
@@ -86,7 +92,8 @@ mypy src/agent_fleet/
    80% coverage enforced by pytest-cov.
 
 5. **No global state** — Use dependency injection via FastAPI's `Depends()`.
-   No module-level mutable variables.
+   No module-level mutable variables. Supabase clients use `@lru_cache`
+   factories in `api/deps.py`, not module-level singletons.
 
 6. **Pydantic for all API schemas** — Request/response models use Pydantic v2.
    Validate at the API boundary. Use `model_dump()` not `.dict()`.
@@ -156,7 +163,7 @@ refactor(scope): short description
 docs(scope): short description
 ```
 
-Scope is the module: `orchestrator`, `agents`, `api`, `cli`, `tools`, `workspace`, `store`.
+Scope is the module: `orchestrator`, `agents`, `api`, `cli`, `tools`, `workspace`, `store`, `worker`, `bridge`.
 Always reference the issue number: `feat(agents): add registry (#7)`
 
 ---
@@ -168,13 +175,19 @@ Always reference the issue number: `feat(agents): add registry (#7)`
 | `src/agent_fleet/core/` | LangGraph orchestrator, state, gates, routing |
 | `src/agent_fleet/agents/` | Agent runner, registry, base interface |
 | `src/agent_fleet/tools/` | Tool implementations (code, browser, shell, etc.) |
-| `src/agent_fleet/api/` | FastAPI routes, schemas, websocket |
+| `src/agent_fleet/api/` | FastAPI routes, schemas, websocket, deps (auth + Supabase clients) |
+| `src/agent_fleet/api/deps.py` | Supabase client factories + JWT auth dependency — all routes import from here |
+| `src/agent_fleet/api/schemas/` | Pydantic v2 request/response models (tasks, etc.) |
+| `src/agent_fleet/worker/` | Fleet worker process — polls Supabase, runs orchestrator, writes status |
+| `src/agent_fleet/worker/status_writer.py` | StatusWriter — orchestrator subclass that persists to Supabase |
+| `src/agent_fleet/worker/orchestrator_factory.py` | Builds StatusWriter from Supabase workflow + agent data |
 | `src/agent_fleet/models/` | LiteLLM provider wrapper, model config |
 | `src/agent_fleet/workspace/` | Git worktree management |
-| `src/agent_fleet/store/` | Database, persistence |
-| `config/agents/` | Agent YAML definitions |
-| `config/workflows/` | Workflow YAML definitions |
+| `src/agent_fleet/store/` | Supabase repositories (tasks, executions, events, agents, workflows, gate_results) |
+| `config/agents/` | Agent YAML definitions (also stored in Supabase for UI-created agents) |
+| `config/workflows/` | Workflow YAML definitions (also stored in Supabase) |
 | `cli/` | Typer CLI client |
+| `fleet-ui/` | React UI (Vite + TypeScript + Supabase Realtime) |
 | `tests/` | Unit and integration tests |
 
 ---
@@ -191,19 +204,57 @@ Always reference the issue number: `feat(agents): add registry (#7)`
   `subprocess.run` in async contexts. Blocking calls freeze the event loop.
 - **Gate infinite loops** — Always enforce `max_retries` on gate failures.
   An agent that never passes review will loop forever without this guard.
+- **Supabase timestamps** — Use `datetime.now(timezone.utc).isoformat()` for
+  timestamps, NOT `"now()"`. supabase-py sends JSON, so `"now()"` is stored
+  as a literal string, not a Postgres function call.
+- **User scoping** — All API routes must filter by `user_id` from
+  `get_current_user()` for defense-in-depth, even though RLS exists.
+- **Worker vs API clients** — API uses anon key (`get_supabase_client`),
+  worker uses service role key (`get_service_client`). Never use service
+  role key in API routes.
+
+---
+
+## Architecture: Three Processes, One Database
+
+```
+┌────────────┐      ┌──────────────┐      ┌─────────────────┐
+│  React UI  │─────▶│   Supabase   │◀─────│  fleet-worker   │
+│ (port 3001)│◀─────│  (Postgres)  │─────▶│  (poll process) │
+└────────────┘  RT  └──────────────┘ poll  └────────┬────────┘
+                           ▲                        │
+                           │                        ▼
+                    ┌──────┴──────┐       ┌─────────────────┐
+                    │  FastAPI    │       │ FleetOrchestrator│
+                    │  (port 8000)│       │ + StatusWriter   │
+                    └─────────────┘       └─────────────────┘
+```
+
+**Data flow:**
+1. User submits task via UI → API validates → `tasks` row (`status='queued'`)
+2. `fleet-worker` polls every 3s → atomic pickup → `status='running'`
+3. Worker builds orchestrator via `OrchestratorFactory.from_supabase()`
+4. `StatusWriter` writes executions, gate_results, events as stages progress
+5. UI receives live updates via Supabase Realtime
+6. On completion → `status='completed'`, `pr_url` set
 
 ---
 
 ## Supabase Integration
 
-**Backend data layer** — auth, database, realtime, storage all via Supabase.
+**Sole data layer** — auth, database, realtime, storage all via Supabase.
+SQLAlchemy was removed in EPIC #177.
 
 ### Environment Variables
 
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_...      # Client-side (React UI)
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   # Server-side (FastAPI)
+SUPABASE_ANON_KEY=sb_publishable_...      # API routes (RLS enforced)
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   # Worker (bypasses RLS)
+ANTHROPIC_API_KEY=...                      # Worker — LLM calls via LiteLLM
+OPENAI_API_KEY=...                         # Worker — LLM calls via LiteLLM
+MAX_CONCURRENT_TASKS=3                     # Worker — max parallel tasks
+POLL_INTERVAL_SECONDS=3                    # Worker — poll frequency
 ```
 
 ### Schema (7 tables, all with RLS)
@@ -226,8 +277,27 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   # Server-side (FastAPI)
 
 ### Key Rules
 
-- **Never bypass RLS** — always use anon key for user-scoped queries
-- **Service role key** — only for admin operations (seed script, migrations)
+- **Never bypass RLS** — API routes use anon key (`get_supabase_client` from `deps.py`)
+- **Service role key** — only for worker (`get_service_client`) and admin operations
 - **Realtime** — enabled on tasks, executions, events tables
 - **Storage** — `task-outputs` and `task-logs` buckets for agent artifacts
 - **Seed data** — `python scripts/seed_supabase.py <user_id>` for default agents/workflows
+
+---
+
+## Worker Process (`fleet-worker`)
+
+**Entry point:** `python -m agent_fleet.worker`
+
+**Poll loop:** Every 3s, queries `tasks WHERE status='queued'`, atomically claims
+via compare-and-swap (`UPDATE ... WHERE status='queued'`), runs through
+`OrchestratorFactory` → `StatusWriter` → LangGraph pipeline.
+
+**Key behaviors:**
+- **Atomic pickup** — prevents double-execution even with multiple workers
+- **Concurrency control** — `MAX_CONCURRENT_TASKS` (default 3) via ThreadPoolExecutor
+- **Graceful shutdown** — SIGINT/SIGTERM waits for in-flight tasks, re-queues incomplete
+- **Stale task recovery** — on startup, re-queues tasks stuck in 'running' > 30 min
+- **Heartbeat** — writes `/tmp/fleet-worker-heartbeat` for Docker healthcheck
+- **Worktree cleanup** — always in `finally` block after task execution
+- **Cancellation** — StatusWriter checks `tasks.status` before each stage boundary
