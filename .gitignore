@@ -11,3 +11,4 @@ build/
 htmlcov/
 .coverage
 .fleet-worktrees/
+.worktrees/
