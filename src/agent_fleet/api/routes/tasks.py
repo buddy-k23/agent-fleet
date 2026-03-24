@@ -1,70 +1,80 @@
-"""Task submission and management routes."""
+"""Task API routes — submit, list, get, cancel tasks."""
 
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
 
-from agent_fleet.api.schemas import TaskListResponse, TaskResponse, TaskSubmitRequest
-from agent_fleet.store.models import TaskRecord
-from agent_fleet.store.repository import TaskRepository
+from agent_fleet.api.deps import get_current_user, get_supabase_client
+from agent_fleet.api.schemas.tasks import TaskListResponse, TaskResponse, TaskSubmitRequest
+from agent_fleet.store.supabase_repo import SupabaseTaskRepository
 
 logger = structlog.get_logger()
-
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 
 
-def _get_session(request: Request) -> Session:  # type: ignore[misc]
-    yield from request.app.state.get_session()
-
-
-def _task_to_response(task: TaskRecord) -> TaskResponse:
-    return TaskResponse(
-        task_id=task.id,
-        repo=task.repo,
-        description=task.description,
-        status=task.status,
-        workflow=task.workflow,
-    )
+def _get_repo() -> SupabaseTaskRepository:
+    client = get_supabase_client()
+    return SupabaseTaskRepository(client)
 
 
 @router.post("", status_code=201, response_model=TaskResponse)
-def submit_task(
+async def submit_task(
     request: TaskSubmitRequest,
-    session: Session = Depends(_get_session),
+    user: dict = Depends(get_current_user),
+    repo: SupabaseTaskRepository = Depends(_get_repo),
 ) -> TaskResponse:
-    """Submit a new task to the fleet."""
+    """Submit a new task for orchestrator execution."""
     task_id = f"task-{uuid.uuid4().hex[:8]}"
-    repo = TaskRepository(session)
+
     task = repo.create(
         task_id=task_id,
+        user_id=user["id"],
         repo_path=request.repo,
         description=request.description,
-        workflow=request.workflow,
+        workflow=str(request.workflow_id),
     )
-    logger.info("task_submitted", task_id=task_id, repo=request.repo)
-    return _task_to_response(task)
 
-
-@router.get("/{task_id}", response_model=TaskResponse)
-def get_task(
-    task_id: str,
-    session: Session = Depends(_get_session),
-) -> TaskResponse:
-    """Get a task by ID."""
-    repo = TaskRepository(session)
-    task = repo.get(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return _task_to_response(task)
+    logger.info("task_submitted", task_id=task_id, user_id=user["id"])
+    return TaskResponse(**task)
 
 
 @router.get("", response_model=TaskListResponse)
-def list_tasks(
-    session: Session = Depends(_get_session),
+async def list_tasks(
+    user: dict = Depends(get_current_user),
+    repo: SupabaseTaskRepository = Depends(_get_repo),
 ) -> TaskListResponse:
-    """List all tasks."""
-    repo = TaskRepository(session)
-    tasks = repo.list_all()
-    return TaskListResponse(tasks=[_task_to_response(t) for t in tasks])
+    """List all tasks for the current user."""
+    tasks = repo.list_by_user(user["id"])
+    return TaskListResponse(tasks=[TaskResponse(**t) for t in tasks])
+
+
+@router.get("/{task_id}", response_model=TaskResponse)
+async def get_task(
+    task_id: str,
+    user: dict = Depends(get_current_user),
+    repo: SupabaseTaskRepository = Depends(_get_repo),
+) -> TaskResponse:
+    """Get task details by ID — scoped to current user."""
+    task = repo.get(task_id)
+    if not task or task.get("user_id") != user["id"]:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return TaskResponse(**task)
+
+
+@router.delete("/{task_id}/cancel", status_code=200)
+async def cancel_task(
+    task_id: str,
+    user: dict = Depends(get_current_user),
+    repo: SupabaseTaskRepository = Depends(_get_repo),
+) -> dict:
+    """Cancel a running or queued task — scoped to current user."""
+    task = repo.get(task_id)
+    if not task or task.get("user_id") != user["id"]:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task["status"] not in ("queued", "running"):
+        raise HTTPException(status_code=400, detail=f"Cannot cancel task with status '{task['status']}'")
+
+    repo.update_status(task_id, "cancelled")
+    logger.info("task_cancelled", task_id=task_id, user_id=user["id"])
+    return {"status": "cancelled", "task_id": task_id}
