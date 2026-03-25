@@ -184,7 +184,9 @@ class TestCancelTask:
         response = client.delete("/api/v1/tasks/task-1/cancel")
         assert response.status_code == 400
 
-    def test_cancel_already_cancelled_returns_400(self, client: TestClient, mock_repo: MagicMock) -> None:
+    def test_cancel_already_cancelled_returns_400(
+        self, client: TestClient, mock_repo: MagicMock,
+    ) -> None:
         """DELETE /api/v1/tasks/{id}/cancel returns 400 if task is already cancelled."""
         mock_repo.get.return_value = {
             "id": "task-1",

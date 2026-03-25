@@ -16,7 +16,9 @@ def recommend_agents(profile: ProjectProfile) -> list[dict]:
             "name": "Architect",
             "model": "anthropic/claude-sonnet-4-6",
             "tools": ["code", "search"],
-            "prompt_hint": f"This is a {', '.join(profile.frameworks or profile.languages)} project.",
+            "prompt_hint": (
+                f"This is a {', '.join(profile.frameworks or profile.languages)} project."
+            ),
         }
     )
 

@@ -1,8 +1,9 @@
 """Tests for OrchestratorFactory — builds StatusWriter from Supabase data."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import ValidationError
-from unittest.mock import MagicMock
 
 from agent_fleet.worker.orchestrator_factory import OrchestratorFactory
 from agent_fleet.worker.status_writer import StatusWriter
