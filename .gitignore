@@ -12,3 +12,5 @@ htmlcov/
 .coverage
 .fleet-worktrees/
 .worktrees/
+.venv/
+.claude/
