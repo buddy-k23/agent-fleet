@@ -66,7 +66,7 @@ class SupabaseTaskRepository:
             self._client.table("tasks")
             .update({"status": "running", "started_at": datetime.now(UTC).isoformat()})
             .eq("id", task_id)
-            .eq("status", "queued")
+            .in_("status", ["queued", "resuming"])
             .execute()
         )
         return len(result.data) == 1

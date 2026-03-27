@@ -16,6 +16,7 @@ from agent_fleet.store.supabase_repo import (
     SupabaseTaskRepository,
     SupabaseWorkflowRepository,
 )
+from agent_fleet.worker.checkpointer import get_checkpointer  # noqa: F401
 from agent_fleet.worker.orchestrator_factory import OrchestratorFactory
 
 logger = structlog.get_logger()
@@ -128,7 +129,7 @@ class FleetWorker:
         result = (
             self._client.table("tasks")
             .select("*")
-            .eq("status", "queued")
+            .in_("status", ["queued", "resuming"])
             .order("created_at")
             .limit(limit)
             .execute()
@@ -227,7 +228,7 @@ class FleetWorker:
             started_at = task.get("started_at")
             if not started_at:
                 logger.warning("recovering_stale_task", task_id=task["id"], reason="no started_at")
-                self._tasks_repo.update_status(task["id"], "queued")
+                self._tasks_repo.update_status(task["id"], "resuming")
                 continue
 
             if isinstance(started_at, str):
@@ -240,4 +241,4 @@ class FleetWorker:
                     task_id=task["id"],
                     age_minutes=round(age_minutes),
                 )
-                self._tasks_repo.update_status(task["id"], "queued")
+                self._tasks_repo.update_status(task["id"], "resuming")

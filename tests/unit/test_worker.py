@@ -16,11 +16,10 @@ def mock_service_client():
 
 @pytest.fixture
 def worker(mock_service_client):
-    with patch("agent_fleet.worker.get_service_client", return_value=mock_service_client):
-        w = FleetWorker(
-            max_concurrent_tasks=2,
-            poll_interval_seconds=0.1,
-        )
+    with patch("agent_fleet.worker.get_service_client", return_value=mock_service_client), \
+         patch("agent_fleet.worker.get_checkpointer") as mock_cp:
+        mock_cp.return_value = MagicMock()
+        w = FleetWorker(max_concurrent_tasks=2, poll_interval_seconds=0.1)
         yield w
         w.shutdown()
 
@@ -36,7 +35,7 @@ class TestPollLoop:
             "user_id": "user-1",
         }
         chain = mock_service_client.table.return_value.select.return_value
-        chain.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+        chain.in_.return_value.order.return_value.limit.return_value.execute.return_value.data = [
             task_row
         ]
 
@@ -60,7 +59,7 @@ class TestPollLoop:
             "user_id": "user-1",
         }
         chain = mock_service_client.table.return_value.select.return_value
-        chain.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+        chain.in_.return_value.order.return_value.limit.return_value.execute.return_value.data = [
             task_row
         ]
 
@@ -99,7 +98,7 @@ class TestStaleTaskRecovery:
 
         worker._recover_stale_tasks()
 
-        worker._tasks_repo.update_status.assert_called_with("task-old", "queued")
+        worker._tasks_repo.update_status.assert_called_with("task-old", "resuming")
 
     def test_does_not_requeue_recently_started_tasks(self, worker):
         """Tasks started less than 30 min ago are NOT re-queued."""
@@ -121,7 +120,7 @@ class TestStaleTaskRecovery:
 
         worker._recover_stale_tasks()
 
-        worker._tasks_repo.update_status.assert_called_with("task-notime", "queued")
+        worker._tasks_repo.update_status.assert_called_with("task-notime", "resuming")
 
 
 class TestExecuteTask:

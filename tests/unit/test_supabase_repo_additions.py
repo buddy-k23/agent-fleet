@@ -50,7 +50,7 @@ class TestAtomicPickup:
         """Atomic pickup returns True when row is claimed."""
         client = MagicMock()
         mock_chain = client.table.return_value.update.return_value
-        mock_chain.eq.return_value.eq.return_value.execute.return_value.data = [
+        mock_chain.eq.return_value.in_.return_value.execute.return_value.data = [
             {"id": "task-1", "status": "running"}
         ]
 
@@ -61,7 +61,7 @@ class TestAtomicPickup:
         """Atomic pickup returns False when another worker grabbed it."""
         client = MagicMock()
         mock_chain = client.table.return_value.update.return_value
-        mock_chain.eq.return_value.eq.return_value.execute.return_value.data = []
+        mock_chain.eq.return_value.in_.return_value.execute.return_value.data = []
 
         repo = SupabaseTaskRepository(client)
         assert repo.atomic_pickup("task-1") is False
