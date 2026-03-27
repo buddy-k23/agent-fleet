@@ -402,6 +402,7 @@ cd fleet-ui && npm run dev
 | `SUPABASE_URL` | API + Worker | Yes | — | Supabase project URL |
 | `SUPABASE_ANON_KEY` | API | Yes | — | Public key, RLS enforced |
 | `SUPABASE_SERVICE_ROLE_KEY` | Worker | Yes | — | Admin key, bypasses RLS |
+| `SUPABASE_DB_URL` | Worker | Yes (for checkpoints) | — | Direct Postgres connection string |
 | `ANTHROPIC_API_KEY` | Worker | One LLM key required | — | Anthropic API key |
 | `OPENAI_API_KEY` | Worker | Optional | — | OpenAI API key |
 | `MAX_CONCURRENT_TASKS` | Worker | No | `3` | Max parallel tasks |

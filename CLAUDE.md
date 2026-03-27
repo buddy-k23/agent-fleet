@@ -37,7 +37,9 @@ evaluates quality gates, and produces PRs. Built on LangGraph + LiteLLM + FastAP
 
 7. **Fail-safe by default** — Every agent execution has a `timeout_minutes` kill
    switch and a `max_tokens` budget. Worktrees are cleaned up in `finally` blocks.
-   Crashed tasks auto-resume from LangGraph checkpoints on API restart.
+   Crashed tasks auto-resume from LangGraph Postgres checkpoints on worker restart.
+   Checkpoints are stored in Supabase Postgres via `langgraph-checkpoint-postgres`
+   and cleaned up after task completion.
 
 ---
 
@@ -212,6 +214,9 @@ Always reference the issue number: `feat(agents): add registry (#7)`
 - **Worker vs API clients** — API uses anon key (`get_supabase_client`),
   worker uses service role key (`get_service_client`). Never use service
   role key in API routes.
+- **SUPABASE_DB_URL** — This is the direct Postgres connection string, not
+  the Supabase REST API URL. Required for checkpoint crash recovery. Find it
+  in Supabase dashboard under Project Settings > Database > Connection string.
 
 ---
 
@@ -251,6 +256,7 @@ SQLAlchemy was removed in EPIC #177.
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=sb_publishable_...      # API routes (RLS enforced)
 SUPABASE_SERVICE_ROLE_KEY=sb_secret_...   # Worker (bypasses RLS)
+SUPABASE_DB_URL=postgresql://postgres:pass@db.xxx.supabase.co:5432/postgres  # Worker — checkpoint persistence
 ANTHROPIC_API_KEY=...                      # Worker — LLM calls via LiteLLM
 OPENAI_API_KEY=...                         # Worker — LLM calls via LiteLLM
 MAX_CONCURRENT_TASKS=3                     # Worker — max parallel tasks
