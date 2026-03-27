@@ -140,7 +140,7 @@ class TestExecuteTask:
         worker._tasks_repo.update_status = MagicMock()
         worker._events_repo.append = MagicMock()
 
-        with patch("agent_fleet.workspace.worktree.WorktreeManager"):
+        with patch("agent_fleet.worker.WorktreeManager"):
             worker._execute_task(task)
 
         worker._tasks_repo.update_status.assert_called_once()
@@ -170,7 +170,7 @@ class TestExecuteTask:
 
         with patch("agent_fleet.worker.OrchestratorFactory") as mock_factory:
             mock_factory.from_supabase.return_value = mock_writer
-            with patch("agent_fleet.workspace.worktree.WorktreeManager"):
+            with patch("agent_fleet.worker.WorktreeManager"):
                 worker._execute_task(task)
 
         worker._tasks_repo.update_status.assert_called_once()
@@ -187,7 +187,7 @@ class TestExecuteTask:
 
         mock_wt_instance = MagicMock()
 
-        with patch("agent_fleet.workspace.worktree.WorktreeManager", return_value=mock_wt_instance):
+        with patch("agent_fleet.worker.WorktreeManager", return_value=mock_wt_instance):
             worker._execute_task(task)
 
         mock_wt_instance.cleanup_all.assert_called_once_with("task-exec")
