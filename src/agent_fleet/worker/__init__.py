@@ -4,6 +4,7 @@ import signal
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
+from pathlib import Path
 
 import structlog
 
@@ -16,7 +17,9 @@ from agent_fleet.store.supabase_repo import (
     SupabaseTaskRepository,
     SupabaseWorkflowRepository,
 )
+from agent_fleet.worker.checkpointer import get_checkpointer
 from agent_fleet.worker.orchestrator_factory import OrchestratorFactory
+from agent_fleet.workspace.worktree import WorktreeManager
 
 logger = structlog.get_logger()
 
@@ -43,6 +46,7 @@ class FleetWorker:
         self._events_repo = SupabaseEventRepository(client)
         self._workflows_repo = SupabaseWorkflowRepository(client)
         self._agents_repo = SupabaseAgentRepository(client)
+        self._checkpointer = get_checkpointer()
 
     def start(self) -> None:
         """Start the poll loop. Blocks until shutdown."""
@@ -128,17 +132,40 @@ class FleetWorker:
         result = (
             self._client.table("tasks")
             .select("*")
-            .eq("status", "queued")
+            .in_("status", ["queued", "resuming"])
             .order("created_at")
             .limit(limit)
             .execute()
         )
         return result.data
 
+    def _build_initial_state(self, task: dict, workflow_data: dict) -> dict:
+        """Build the initial LangGraph state dict for a fresh task execution."""
+        return {
+            "task_id": task["id"],
+            "repo": task["repo"],
+            "description": task["description"],
+            "workflow_name": workflow_data.get("name", "unknown"),
+            "status": "running",
+            "completed_stages": [],
+            "stage_outputs": {},
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+        }
+
     def _execute_task(self, task: dict) -> None:
-        """Execute a single task through the orchestrator pipeline."""
+        """Execute a single task through the orchestrator pipeline.
+
+        Supports checkpoint-based resume: if task status is 'resuming', checks
+        for an existing LangGraph checkpoint and resumes from it. Falls back to
+        a fresh start if no checkpoint exists.
+        """
         task_id = task["id"]
-        logger.info("task_executing", task_id=task_id)
+        is_resuming = task.get("status") == "resuming"
+        config: dict = {"configurable": {"thread_id": task_id}}
+        logger.info("task_executing", task_id=task_id, is_resuming=is_resuming)
+
+        completed_successfully = False
 
         try:
             workflow_data = self._workflows_repo.get(task["workflow_id"])
@@ -161,20 +188,30 @@ class FleetWorker:
                 repos=repos,
             )
 
-            graph = orchestrator.build_graph()
-            initial_state = {
-                "task_id": task_id,
-                "repo": task["repo"],
-                "description": task["description"],
-                "workflow_name": workflow_data.get("name", "unknown"),
-                "status": "running",
-                "completed_stages": [],
-                "stage_outputs": {},
-                "total_tokens": 0,
-                "total_cost_usd": 0.0,
-            }
+            graph = orchestrator.build_graph(checkpointer=self._checkpointer)
+            initial_state = self._build_initial_state(task, workflow_data)
 
-            result = graph.invoke(initial_state)
+            if is_resuming:
+                # Check for an existing checkpoint and resume if found.
+                try:
+                    existing_state = graph.get_state(config)
+                    has_checkpoint = bool(existing_state.values)
+                except Exception as checkpoint_err:
+                    logger.warning(
+                        "checkpoint_read_failed",
+                        task_id=task_id,
+                        error=str(checkpoint_err),
+                    )
+                    has_checkpoint = False
+
+                if has_checkpoint:
+                    logger.info("resuming_from_checkpoint", task_id=task_id)
+                    result = graph.invoke(None, config)
+                else:
+                    logger.info("no_checkpoint_found_fresh_start", task_id=task_id)
+                    result = graph.invoke(initial_state, config)
+            else:
+                result = graph.invoke(initial_state, config)
 
             final_status = result.get("status", "completed")
             self._tasks_repo.update_status(
@@ -186,6 +223,14 @@ class FleetWorker:
                 pr_url=result.get("pr_url"),
             )
             logger.info("task_completed", task_id=task_id, status=final_status)
+            completed_successfully = True
+
+            # Clean up checkpoint only on success — preserve it for crash recovery.
+            try:
+                self._checkpointer.delete_thread(config)
+                logger.info("checkpoint_deleted", task_id=task_id)
+            except Exception as cp_err:
+                logger.warning("checkpoint_delete_failed", task_id=task_id, error=str(cp_err))
 
         except Exception as e:
             logger.error("task_failed", task_id=task_id, error=str(e))
@@ -197,10 +242,6 @@ class FleetWorker:
 
         finally:
             try:
-                from pathlib import Path
-
-                from agent_fleet.workspace.worktree import WorktreeManager
-
                 repo_path = task.get("repo")
                 if repo_path:
                     wt_manager = WorktreeManager(Path(repo_path))
@@ -208,6 +249,8 @@ class FleetWorker:
                     logger.info("worktrees_cleaned", task_id=task_id)
             except Exception as cleanup_err:
                 logger.error("worktree_cleanup_failed", task_id=task_id, error=str(cleanup_err))
+
+        _ = completed_successfully  # referenced above to clarify intent
 
     def _cleanup_finished_futures(self) -> None:
         """Remove completed futures from the active set."""
@@ -227,7 +270,7 @@ class FleetWorker:
             started_at = task.get("started_at")
             if not started_at:
                 logger.warning("recovering_stale_task", task_id=task["id"], reason="no started_at")
-                self._tasks_repo.update_status(task["id"], "queued")
+                self._tasks_repo.update_status(task["id"], "resuming")
                 continue
 
             if isinstance(started_at, str):
@@ -240,4 +283,4 @@ class FleetWorker:
                     task_id=task["id"],
                     age_minutes=round(age_minutes),
                 )
-                self._tasks_repo.update_status(task["id"], "queued")
+                self._tasks_repo.update_status(task["id"], "resuming")

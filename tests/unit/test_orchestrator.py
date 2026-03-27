@@ -110,6 +110,63 @@ def test_orchestrator_rejects_incomplete_args() -> None:
         FleetOrchestrator(task_id="test-task-1")
 
 
+def test_build_graph_passes_checkpointer():
+    """build_graph(checkpointer=X) passes X to graph.compile()."""
+    from unittest.mock import MagicMock, patch
+
+    from agent_fleet.agents.registry import AgentRegistry
+    from agent_fleet.core.orchestrator import FleetOrchestrator
+    from agent_fleet.core.workflow import GateConfig, StageConfig, WorkflowConfig
+
+    workflow = WorkflowConfig(
+        name="test",
+        stages=[StageConfig(name="plan", agent="Arch", gate=GateConfig(type="approval"))],
+    )
+    registry = AgentRegistry.from_configs([{
+        "name": "Arch", "description": "Plans", "capabilities": ["code_analysis"],
+        "tools": ["code"], "default_model": "anthropic/claude-opus-4-6",
+        "system_prompt": "You are an architect.",
+    }])
+
+    orch = FleetOrchestrator(task_id="t-1", workflow=workflow, registry=registry)
+    mock_checkpointer = MagicMock()
+
+    with patch("agent_fleet.core.orchestrator.StateGraph") as mock_sg_cls:
+        mock_graph = MagicMock()
+        mock_sg_cls.return_value = mock_graph
+        orch.build_graph(checkpointer=mock_checkpointer)
+
+    mock_graph.compile.assert_called_once_with(checkpointer=mock_checkpointer)
+
+
+def test_build_graph_works_without_checkpointer():
+    """build_graph() with no checkpointer still works (backward compat)."""
+    from unittest.mock import MagicMock, patch
+
+    from agent_fleet.agents.registry import AgentRegistry
+    from agent_fleet.core.orchestrator import FleetOrchestrator
+    from agent_fleet.core.workflow import GateConfig, StageConfig, WorkflowConfig
+
+    workflow = WorkflowConfig(
+        name="test",
+        stages=[StageConfig(name="plan", agent="Arch", gate=GateConfig(type="approval"))],
+    )
+    registry = AgentRegistry.from_configs([{
+        "name": "Arch", "description": "Plans", "capabilities": ["code_analysis"],
+        "tools": ["code"], "default_model": "anthropic/claude-opus-4-6",
+        "system_prompt": "You are an architect.",
+    }])
+
+    orch = FleetOrchestrator(task_id="t-1", workflow=workflow, registry=registry)
+
+    with patch("agent_fleet.core.orchestrator.StateGraph") as mock_sg_cls:
+        mock_graph = MagicMock()
+        mock_sg_cls.return_value = mock_graph
+        orch.build_graph()
+
+    mock_graph.compile.assert_called_once_with(checkpointer=None)
+
+
 class TestEventLog:
     def test_log_event_returns_dict(self) -> None:
         event = log_event("task-001", "action", {"tool": "code"})
