@@ -137,7 +137,7 @@ class TestCheckpointCleanup:
 
         worker._checkpointer.delete_thread.assert_called_once()
 
-    def test_checkpoint_NOT_cleaned_on_error(self, worker):
+    def test_checkpoint_not_cleaned_on_error(self, worker):
         """Checkpoint is preserved when task errors (for future resume)."""
         task = self._make_task()
         worker._workflows_repo.get = MagicMock(return_value=None)  # Will cause error
