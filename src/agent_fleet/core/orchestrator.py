@@ -529,7 +529,7 @@ class FleetOrchestrator:
 
         return passed, route_to_stage
 
-    def build_graph(self) -> StateGraph:
+    def build_graph(self, checkpointer=None):
         """Build and compile the LangGraph state graph."""
         graph = StateGraph(FleetState)
 
@@ -557,7 +557,7 @@ class FleetOrchestrator:
             },
         )
 
-        return graph.compile()
+        return graph.compile(checkpointer=checkpointer)
 
 
 # Backward-compatible standalone functions for existing tests
