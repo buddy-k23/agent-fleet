@@ -160,6 +160,78 @@ class TestGetTask:
         assert response.status_code == 404
 
 
+class TestSubmitWithProject:
+    def test_submit_with_project_id(self, client: TestClient, mock_repo: MagicMock) -> None:
+        """POST /api/v1/tasks with project_id passes it to create."""
+        mock_repo.create.return_value = {
+            "id": "task-proj",
+            "repo": "/tmp/repo",
+            "description": "Task",
+            "status": "queued",
+            "workflow_name": "default",
+            "project_id": "proj-1",
+            "created_at": "2026-03-30T00:00:00Z",
+            "updated_at": "2026-03-30T00:00:00Z",
+        }
+        response = client.post(
+            "/api/v1/tasks",
+            json={"repo": "/tmp/repo", "description": "Task", "workflow_id": "wf-1", "project_id": "proj-1"},
+        )
+        assert response.status_code == 201
+        call_kwargs = mock_repo.create.call_args
+        assert call_kwargs.kwargs.get("project_id") == "proj-1"
+
+    def test_submit_without_project_id_passes_none(
+        self, client: TestClient, mock_repo: MagicMock
+    ) -> None:
+        """POST /api/v1/tasks without project_id passes None."""
+        mock_repo.create.return_value = {
+            "id": "task-no-proj",
+            "repo": "/tmp/repo",
+            "description": "Task",
+            "status": "queued",
+            "workflow_name": "default",
+            "project_id": None,
+            "created_at": "2026-03-30T00:00:00Z",
+            "updated_at": "2026-03-30T00:00:00Z",
+        }
+        client.post(
+            "/api/v1/tasks",
+            json={"repo": "/tmp/repo", "description": "Task", "workflow_id": "wf-1"},
+        )
+        call_kwargs = mock_repo.create.call_args
+        assert call_kwargs.kwargs.get("project_id") is None
+
+
+class TestListByProject:
+    def test_list_with_project_filter(self, client: TestClient, mock_repo: MagicMock) -> None:
+        """GET /api/v1/tasks?project_id=X calls list_by_project."""
+        mock_repo.list_by_project.return_value = [
+            {
+                "id": "t-1",
+                "repo": "/tmp",
+                "description": "Task",
+                "status": "completed",
+                "project_id": "proj-1",
+                "created_at": "2026-03-30T00:00:00Z",
+                "updated_at": "2026-03-30T00:00:00Z",
+            }
+        ]
+        response = client.get("/api/v1/tasks?project_id=proj-1")
+        assert response.status_code == 200
+        mock_repo.list_by_project.assert_called_once_with("user-123", "proj-1")
+
+    def test_list_without_project_filter_uses_list_by_user(
+        self, client: TestClient, mock_repo: MagicMock
+    ) -> None:
+        """GET /api/v1/tasks without project_id calls list_by_user."""
+        mock_repo.list_by_user.return_value = []
+        response = client.get("/api/v1/tasks")
+        assert response.status_code == 200
+        mock_repo.list_by_user.assert_called_once()
+        mock_repo.list_by_project.assert_not_called()
+
+
 class TestCancelTask:
     def test_cancel_sets_cancelled(self, client: TestClient, mock_repo: MagicMock) -> None:
         """DELETE /api/v1/tasks/{id}/cancel sets status to cancelled."""

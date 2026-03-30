@@ -21,6 +21,7 @@ class TaskResponse(BaseModel):
     repo: str
     description: str
     status: str
+    project_id: str | None = None
     workflow_name: str | None = None
     current_stage: str | None = None
     completed_stages: list[str] = []

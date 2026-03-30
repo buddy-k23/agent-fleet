@@ -16,7 +16,13 @@ class SupabaseTaskRepository:
         self._client = client
 
     def create(
-        self, task_id: str, user_id: str, repo_path: str, description: str, workflow: str
+        self,
+        task_id: str,
+        user_id: str,
+        repo_path: str,
+        description: str,
+        workflow: str,
+        project_id: str | None = None,
     ) -> dict:
         result = (
             self._client.table("tasks")
@@ -28,6 +34,7 @@ class SupabaseTaskRepository:
                     "description": description,
                     "workflow_name": workflow,
                     "status": "queued",
+                    "project_id": project_id,
                 }
             )
             .execute()
@@ -56,6 +63,18 @@ class SupabaseTaskRepository:
 
     def list_by_status(self, status: str) -> list[dict]:
         result = self._client.table("tasks").select("*").eq("status", status).execute()
+        return result.data
+
+    def list_by_project(self, user_id: str, project_id: str) -> list[dict]:
+        """List tasks for a project, scoped to user."""
+        result = (
+            self._client.table("tasks")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
         return result.data
 
     def count_by_project(self, project_id: str) -> int:
