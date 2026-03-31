@@ -26,7 +26,9 @@ class TestProjectRepoGet:
         """Get returns project dict."""
         client = MagicMock()
         row = {"id": "proj-1", "name": "My Project"}
-        client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [row]
+        (
+            client.table.return_value.select.return_value.eq.return_value.execute.return_value.data
+        ) = [row]
 
         repo = SupabaseProjectRepository(client)
         result = repo.get("proj-1")
@@ -59,7 +61,9 @@ class TestProjectRepoUpdate:
         """Update sends data dict to Supabase."""
         client = MagicMock()
         row = {"id": "proj-1", "name": "Updated"}
-        client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [row]
+        (
+            client.table.return_value.update.return_value.eq.return_value.execute.return_value.data
+        ) = [row]
 
         repo = SupabaseProjectRepository(client)
         result = repo.update("proj-1", {"name": "Updated"})

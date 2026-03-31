@@ -175,7 +175,12 @@ class TestSubmitWithProject:
         }
         response = client.post(
             "/api/v1/tasks",
-            json={"repo": "/tmp/repo", "description": "Task", "workflow_id": "wf-1", "project_id": "proj-1"},
+            json={
+                "repo": "/tmp/repo",
+                "description": "Task",
+                "workflow_id": "wf-1",
+                "project_id": "proj-1",
+            },
         )
         assert response.status_code == 201
         call_kwargs = mock_repo.create.call_args
@@ -257,7 +262,9 @@ class TestCancelTask:
         assert response.status_code == 400
 
     def test_cancel_already_cancelled_returns_400(
-        self, client: TestClient, mock_repo: MagicMock,
+        self,
+        client: TestClient,
+        mock_repo: MagicMock,
     ) -> None:
         """DELETE /api/v1/tasks/{id}/cancel returns 400 if task is already cancelled."""
         mock_repo.get.return_value = {

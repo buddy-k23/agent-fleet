@@ -113,9 +113,7 @@ class TestGetProject:
 
 
 class TestUpdateProject:
-    def test_updates_project(
-        self, client: TestClient, mock_repo: MagicMock
-    ) -> None:
+    def test_updates_project(self, client: TestClient, mock_repo: MagicMock) -> None:
         mock_repo.get.return_value = PROJECT_ROW
         mock_repo.update.return_value = {**PROJECT_ROW, "name": "Updated"}
         resp = client.put("/api/v1/projects/p1", json={"name": "Updated"})

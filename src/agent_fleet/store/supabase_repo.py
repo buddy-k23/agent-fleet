@@ -301,12 +301,7 @@ class SupabaseProjectRepository:
 
     def get(self, project_id: str) -> dict | None:
         """Get project by ID."""
-        result = (
-            self._client.table("projects")
-            .select("*")
-            .eq("id", project_id)
-            .execute()
-        )
+        result = self._client.table("projects").select("*").eq("id", project_id).execute()
         return result.data[0] if result.data else None
 
     def list_by_user(self, user_id: str) -> list[dict]:
@@ -322,12 +317,7 @@ class SupabaseProjectRepository:
 
     def update(self, project_id: str, data: dict) -> dict:
         """Update project metadata."""
-        result = (
-            self._client.table("projects")
-            .update(data)
-            .eq("id", project_id)
-            .execute()
-        )
+        result = self._client.table("projects").update(data).eq("id", project_id).execute()
         return result.data[0]
 
     def delete(self, project_id: str) -> None:
