@@ -16,7 +16,13 @@ class SupabaseTaskRepository:
         self._client = client
 
     def create(
-        self, task_id: str, user_id: str, repo_path: str, description: str, workflow: str
+        self,
+        task_id: str,
+        user_id: str,
+        repo_path: str,
+        description: str,
+        workflow: str,
+        project_id: str | None = None,
     ) -> dict:
         result = (
             self._client.table("tasks")
@@ -28,6 +34,7 @@ class SupabaseTaskRepository:
                     "description": description,
                     "workflow_name": workflow,
                     "status": "queued",
+                    "project_id": project_id,
                 }
             )
             .execute()
@@ -57,6 +64,28 @@ class SupabaseTaskRepository:
     def list_by_status(self, status: str) -> list[dict]:
         result = self._client.table("tasks").select("*").eq("status", status).execute()
         return result.data
+
+    def list_by_project(self, user_id: str, project_id: str) -> list[dict]:
+        """List tasks for a project, scoped to user."""
+        result = (
+            self._client.table("tasks")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data
+
+    def count_by_project(self, project_id: str) -> int:
+        """Count tasks for a project."""
+        result = (
+            self._client.table("tasks")
+            .select("id", count="exact")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        return result.count or 0
 
     def atomic_pickup(self, task_id: str) -> bool:
         """Atomically claim a queued task. Returns True if this worker won the race."""
@@ -256,3 +285,41 @@ class SupabaseWorkflowRepository:
     def delete(self, workflow_id: str) -> None:
         self._client.table("workflows").delete().eq("id", workflow_id).execute()
         logger.info("workflow_deleted", workflow_id=workflow_id)
+
+
+class SupabaseProjectRepository:
+    """Project CRUD via Supabase."""
+
+    def __init__(self, client: Client) -> None:
+        self._client = client
+
+    def create(self, user_id: str, data: dict) -> dict:
+        """Create a project for a user."""
+        data["user_id"] = user_id
+        result = self._client.table("projects").insert(data).execute()
+        return result.data[0]
+
+    def get(self, project_id: str) -> dict | None:
+        """Get project by ID."""
+        result = self._client.table("projects").select("*").eq("id", project_id).execute()
+        return result.data[0] if result.data else None
+
+    def list_by_user(self, user_id: str) -> list[dict]:
+        """List all projects for a user, newest first."""
+        result = (
+            self._client.table("projects")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data
+
+    def update(self, project_id: str, data: dict) -> dict:
+        """Update project metadata."""
+        result = self._client.table("projects").update(data).eq("id", project_id).execute()
+        return result.data[0]
+
+    def delete(self, project_id: str) -> None:
+        """Delete project. Tasks are unlinked via ON DELETE SET NULL."""
+        self._client.table("projects").delete().eq("id", project_id).execute()

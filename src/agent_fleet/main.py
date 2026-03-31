@@ -11,6 +11,7 @@ from agent_fleet.api.routes import (
     audit,
     chat,
     profile,
+    projects,
     tasks,
     webhooks,
     workflows,
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
 
     # Routes
     app.include_router(tasks.router)
+    app.include_router(projects.router)
     app.include_router(agents.router)
     app.include_router(workflows.router)
     app.include_router(profile.router)

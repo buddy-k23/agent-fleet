@@ -3,7 +3,7 @@
 import uuid
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from agent_fleet.api.deps import get_current_user, get_supabase_client
 from agent_fleet.api.schemas.tasks import TaskListResponse, TaskResponse, TaskSubmitRequest
@@ -33,6 +33,7 @@ async def submit_task(
         repo_path=request.repo,
         description=request.description,
         workflow=str(request.workflow_id),
+        project_id=request.project_id,
     )
 
     logger.info("task_submitted", task_id=task_id, user_id=user["id"])
@@ -43,9 +44,13 @@ async def submit_task(
 async def list_tasks(
     user: dict = Depends(get_current_user),
     repo: SupabaseTaskRepository = Depends(_get_repo),
+    project_id: str | None = Query(None),
 ) -> TaskListResponse:
-    """List all tasks for the current user."""
-    tasks = repo.list_by_user(user["id"])
+    """List tasks for the current user, optionally filtered by project."""
+    if project_id:
+        tasks = repo.list_by_project(user["id"], project_id)
+    else:
+        tasks = repo.list_by_user(user["id"])
     return TaskListResponse(tasks=[TaskResponse(**t) for t in tasks])
 
 
