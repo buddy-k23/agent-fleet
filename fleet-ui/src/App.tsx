@@ -25,6 +25,7 @@ import { Login, Signup } from './pages/Auth';
 import { Settings } from './pages/Settings';
 import { SubmitTask } from './pages/SubmitTask';
 import { Projects } from './pages/Projects';
+import { ProjectDetail } from './pages/ProjectDetail';
 import { Chat } from './pages/Chat';
 import { Admin } from './pages/Admin';
 import { lightTheme, darkTheme } from './theme';
@@ -261,6 +262,7 @@ export default function App() {
               <Route path="/submit" element={<ProtectedRoute><SubmitTask /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+              <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
               <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             </Routes>
