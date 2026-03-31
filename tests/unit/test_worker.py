@@ -16,8 +16,10 @@ def mock_service_client():
 
 @pytest.fixture
 def worker(mock_service_client):
-    with patch("agent_fleet.worker.get_service_client", return_value=mock_service_client), \
-         patch("agent_fleet.worker.get_checkpointer") as mock_cp:
+    with (
+        patch("agent_fleet.worker.get_service_client", return_value=mock_service_client),
+        patch("agent_fleet.worker.get_checkpointer") as mock_cp,
+    ):
         mock_cp.return_value = MagicMock()
         w = FleetWorker(max_concurrent_tasks=2, poll_interval_seconds=0.1)
         yield w

@@ -9,10 +9,13 @@ from agent_fleet.worker.checkpointer import get_checkpointer
 
 def test_get_checkpointer_creates_saver_with_db_url():
     """Creates PostgresSaver using SUPABASE_DB_URL env var."""
-    with patch.dict(
-        "os.environ",
-        {"SUPABASE_DB_URL": "postgresql://postgres:pass@db.example.com:5432/postgres"},
-    ), patch("agent_fleet.worker.checkpointer.PostgresSaver") as mock_cls:
+    with (
+        patch.dict(
+            "os.environ",
+            {"SUPABASE_DB_URL": "postgresql://postgres:pass@db.example.com:5432/postgres"},
+        ),
+        patch("agent_fleet.worker.checkpointer.PostgresSaver") as mock_cls,
+    ):
         mock_saver = MagicMock()
         mock_cls.from_conn_string.return_value = mock_saver
 
@@ -33,10 +36,13 @@ def test_get_checkpointer_raises_when_not_configured():
 
 def test_get_checkpointer_calls_setup():
     """Calls setup() on the saver to create checkpoint tables."""
-    with patch.dict(
-        "os.environ",
-        {"SUPABASE_DB_URL": "postgresql://postgres:pass@localhost:5432/postgres"},
-    ), patch("agent_fleet.worker.checkpointer.PostgresSaver") as mock_cls:
+    with (
+        patch.dict(
+            "os.environ",
+            {"SUPABASE_DB_URL": "postgresql://postgres:pass@localhost:5432/postgres"},
+        ),
+        patch("agent_fleet.worker.checkpointer.PostgresSaver") as mock_cls,
+    ):
         mock_saver = MagicMock()
         mock_cls.from_conn_string.return_value = mock_saver
 

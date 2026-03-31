@@ -122,11 +122,18 @@ def test_build_graph_passes_checkpointer():
         name="test",
         stages=[StageConfig(name="plan", agent="Arch", gate=GateConfig(type="approval"))],
     )
-    registry = AgentRegistry.from_configs([{
-        "name": "Arch", "description": "Plans", "capabilities": ["code_analysis"],
-        "tools": ["code"], "default_model": "anthropic/claude-opus-4-6",
-        "system_prompt": "You are an architect.",
-    }])
+    registry = AgentRegistry.from_configs(
+        [
+            {
+                "name": "Arch",
+                "description": "Plans",
+                "capabilities": ["code_analysis"],
+                "tools": ["code"],
+                "default_model": "anthropic/claude-opus-4-6",
+                "system_prompt": "You are an architect.",
+            }
+        ]
+    )
 
     orch = FleetOrchestrator(task_id="t-1", workflow=workflow, registry=registry)
     mock_checkpointer = MagicMock()
@@ -151,11 +158,18 @@ def test_build_graph_works_without_checkpointer():
         name="test",
         stages=[StageConfig(name="plan", agent="Arch", gate=GateConfig(type="approval"))],
     )
-    registry = AgentRegistry.from_configs([{
-        "name": "Arch", "description": "Plans", "capabilities": ["code_analysis"],
-        "tools": ["code"], "default_model": "anthropic/claude-opus-4-6",
-        "system_prompt": "You are an architect.",
-    }])
+    registry = AgentRegistry.from_configs(
+        [
+            {
+                "name": "Arch",
+                "description": "Plans",
+                "capabilities": ["code_analysis"],
+                "tools": ["code"],
+                "default_model": "anthropic/claude-opus-4-6",
+                "system_prompt": "You are an architect.",
+            }
+        ]
+    )
 
     orch = FleetOrchestrator(task_id="t-1", workflow=workflow, registry=registry)
 
