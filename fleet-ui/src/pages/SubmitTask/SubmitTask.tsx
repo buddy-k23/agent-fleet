@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert, Box, Button, Container, FormControl, InputLabel, MenuItem,
   Select, TextField, Typography,
@@ -12,13 +12,22 @@ interface Workflow {
   name: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+  repo_path: string;
+}
+
 export default function SubmitTask() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [repo, setRepo] = useState('');
   const [description, setDescription] = useState('');
   const [workflowId, setWorkflowId] = useState('');
+  const [projectId, setProjectId] = useState(searchParams.get('project_id') ?? '');
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -29,7 +38,18 @@ export default function SubmitTask() {
         if (data.length > 0) setWorkflowId(data[0].id);
       }
     });
+    supabase.from('projects').select('id, name, repo_path').order('created_at', { ascending: false }).then(({ data }) => {
+      if (data) setProjects(data);
+    });
   }, []);
+
+  // Pre-fill repo path when a project is selected
+  useEffect(() => {
+    if (projectId) {
+      const proj = projects.find((p) => p.id === projectId);
+      if (proj && !repo) setRepo(proj.repo_path);
+    }
+  }, [projectId, projects]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +69,7 @@ export default function SubmitTask() {
           repo,
           description,
           workflow_id: workflowId,
+          project_id: projectId || null,
         }),
       });
 
@@ -75,6 +96,21 @@ export default function SubmitTask() {
       {error && <Alert severity="error" sx={{ mb: 2 }} data-testid="submit-error">{error}</Alert>}
 
       <Box component="form" onSubmit={handleSubmit}>
+        {projects.length > 0 && (
+          <FormControl fullWidth margin="normal" data-testid="project-select">
+            <InputLabel>Project (optional)</InputLabel>
+            <Select
+              value={projectId}
+              label="Project (optional)"
+              onChange={(e) => setProjectId(e.target.value)}
+            >
+              <MenuItem value=""><em>None</em></MenuItem>
+              {projects.map((p) => (
+                <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
         <TextField
           label="Repository Path"
           fullWidth
